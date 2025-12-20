@@ -107,6 +107,7 @@ data/raw/*
 data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+!data/raw/lankatel/
 !data/samples/
 !data/samples/sample_faq.jsonl
 
