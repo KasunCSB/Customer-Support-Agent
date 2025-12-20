@@ -299,7 +299,8 @@ class RAGPipeline:
         self,
         question: str,
         top_k: Optional[int] = None,
-        filter_metadata: Optional[Dict[str, Any]] = None
+        filter_metadata: Optional[Dict[str, Any]] = None,
+        include_history: bool = True
     ) -> Iterator[str]:
         """
         Stream a response token by token.
@@ -308,6 +309,7 @@ class RAGPipeline:
             question: User's question
             top_k: Number of documents to retrieve
             filter_metadata: Filter retrieval by metadata
+            include_history: Include conversation history
             
         Yields:
             Response tokens as they're generated
@@ -329,11 +331,13 @@ class RAGPipeline:
         if not context:
             context = "No relevant information found in the knowledge base."
         
-        # Build messages
+        # Build messages with conversation history
+        history = self.memory.get_history() if (self.memory and include_history) else None
         messages = build_rag_messages(
             question=question,
             context=context,
-            system_prompt=self.system_prompt
+            system_prompt=self.system_prompt,
+            conversation_history=history
         )
         
         # Stream response

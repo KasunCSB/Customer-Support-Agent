@@ -166,11 +166,15 @@ class LLMConfig:
     LLM generation configuration.
     
     Attributes:
-        temperature: Sampling temperature (0.0-1.0)
+        temperature: Sampling temperature (0.0-1.0). Higher = more creative/natural
         max_tokens: Maximum tokens in response
+        presence_penalty: Penalty for repeating topics (encourages diversity)
+        frequency_penalty: Penalty for repeating exact phrases
     """
-    temperature: float = field(default_factory=lambda: get_env_float("LLM_TEMPERATURE", 0.1))
-    max_tokens: int = field(default_factory=lambda: get_env_int("LLM_MAX_TOKENS", 512))
+    temperature: float = field(default_factory=lambda: get_env_float("LLM_TEMPERATURE", 0.7))
+    max_tokens: int = field(default_factory=lambda: get_env_int("LLM_MAX_TOKENS", 800))
+    presence_penalty: float = field(default_factory=lambda: get_env_float("LLM_PRESENCE_PENALTY", 0.1))
+    frequency_penalty: float = field(default_factory=lambda: get_env_float("LLM_FREQUENCY_PENALTY", 0.1))
 
 
 @dataclass

@@ -1,12 +1,10 @@
-# Byte-compiled / optimized / DLL files
+# ==============================================================================
+# Python
+# ==============================================================================
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
 *.so
-
-# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -23,22 +21,41 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-
-# PyInstaller
 *.manifest
 *.spec
-
-# Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
 
-# Unit test / coverage reports
+# ==============================================================================
+# Virtual Environments
+# ==============================================================================
+venv/
+ENV/
+env/
+.venv/
+.conda/
+
+# ==============================================================================
+# IDE & Editors
+# ==============================================================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# ==============================================================================
+# Testing & Coverage
+# ==============================================================================
 htmlcov/
 .tox/
 .nox/
 .coverage
 .coverage.*
-.cache
+.cache/
 nosetests.xml
 coverage.xml
 *.cover
@@ -46,64 +63,84 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 
-# Virtual environments
-venv/
-ENV/
-env/
-.venv/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# Environment variables (CRITICAL - Contains API keys)
+# ==============================================================================
+# SECRETS & ENVIRONMENT (CRITICAL - Never commit!)
+# ==============================================================================
 .env
-.env.local
-.env.*.local
+.env.*
 *.env
+!.env.example
+secrets/
+*.pem
+*.key
+*.crt
+*.p12
+*credentials*
 
-# Vector store persistence (large binary files)
+# ==============================================================================
+# Vector Store & Database (Large binary files)
+# ==============================================================================
 vectorstore/
 chroma_db/
 *.sqlite3
 *.db
 *.duckdb
+*.index
+*.faiss
 
+# ==============================================================================
+# Embedding Cache (Generated, can be large)
+# ==============================================================================
+.embedding_cache/
+
+# ==============================================================================
 # Logs
+# ==============================================================================
 logs/
 *.log
+*.log.*
 
-# Data files (keep sample structure only)
-data/raw/*.jsonl
-data/raw/*.json
-data/raw/*.csv
-data/raw/*.txt
+# ==============================================================================
+# Data Files (Keep structure, ignore user data)
+# ==============================================================================
+data/raw/*
 data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/samples/
 !data/samples/sample_faq.jsonl
 
-# Azure/Cloud config backups
-Azure-*.txt
-*-api-keys*.txt
+# ==============================================================================
+# OS Generated
+# ==============================================================================
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+desktop.ini
 
-# Temporary files
+# ==============================================================================
+# Temporary Files
+# ==============================================================================
 tmp/
 temp/
 *.tmp
+*.temp
+*.bak
 
-# OS files
-.DS_Store
-Thumbs.db
-
-# Secrets and keys
-*.pem
-*.key
-secrets/
-
-# Jupyter
+# ==============================================================================
+# Jupyter Notebooks
+# ==============================================================================
 .ipynb_checkpoints/
+
+# ==============================================================================
+# Project Specific
+# ==============================================================================
+
+# UI builds (will be added later)
+ui/node_modules/
+ui/dist/
+ui/build/
+frontend/node_modules/
+frontend/dist/
+frontend/build/

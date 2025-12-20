@@ -171,6 +171,8 @@ class AzureLLMProvider(LLMProvider):
         api_version: Optional[str] = None,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        presence_penalty: Optional[float] = None,
+        frequency_penalty: Optional[float] = None,
         max_retries: int = 3
     ):
         """
@@ -183,6 +185,8 @@ class AzureLLMProvider(LLMProvider):
             api_version: API version (defaults to settings)
             temperature: Default temperature (defaults to settings)
             max_tokens: Default max tokens (defaults to settings)
+            presence_penalty: Penalty for topic repetition (defaults to settings)
+            frequency_penalty: Penalty for phrase repetition (defaults to settings)
             max_retries: Maximum retry attempts on failure
         """
         self.api_key = api_key or settings.azure.api_key
@@ -191,6 +195,8 @@ class AzureLLMProvider(LLMProvider):
         self.api_version = api_version or settings.azure.api_version
         self.temperature = temperature if temperature is not None else settings.llm.temperature
         self.max_tokens = max_tokens if max_tokens is not None else settings.llm.max_tokens
+        self.presence_penalty = presence_penalty if presence_penalty is not None else settings.llm.presence_penalty
+        self.frequency_penalty = frequency_penalty if frequency_penalty is not None else settings.llm.frequency_penalty
         self.max_retries = max_retries
         
         logger.info(
@@ -216,7 +222,9 @@ class AzureLLMProvider(LLMProvider):
         self,
         messages: List[Message],
         temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None
+        max_tokens: Optional[int] = None,
+        presence_penalty: Optional[float] = None,
+        frequency_penalty: Optional[float] = None
     ) -> ChatResponse:
         """
         Generate a chat completion using Azure OpenAI.
@@ -225,6 +233,8 @@ class AzureLLMProvider(LLMProvider):
             messages: List of conversation messages
             temperature: Override default temperature
             max_tokens: Override default max tokens
+            presence_penalty: Override default presence penalty
+            frequency_penalty: Override default frequency penalty
             
         Returns:
             ChatResponse with generated content and usage stats
@@ -232,11 +242,13 @@ class AzureLLMProvider(LLMProvider):
         Raises:
             requests.RequestException: If API call fails after retries
         """
-        # Prepare request body
+        # Prepare request body with all parameters for natural responses
         body = {
             "messages": [m.to_dict() for m in messages],
             "temperature": temperature if temperature is not None else self.temperature,
-            "max_tokens": max_tokens if max_tokens is not None else self.max_tokens
+            "max_tokens": max_tokens if max_tokens is not None else self.max_tokens,
+            "presence_penalty": presence_penalty if presence_penalty is not None else self.presence_penalty,
+            "frequency_penalty": frequency_penalty if frequency_penalty is not None else self.frequency_penalty
         }
         
         last_exception = None
@@ -285,7 +297,9 @@ class AzureLLMProvider(LLMProvider):
         self,
         messages: List[Message],
         temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None
+        max_tokens: Optional[int] = None,
+        presence_penalty: Optional[float] = None,
+        frequency_penalty: Optional[float] = None
     ) -> Iterator[str]:
         """
         Generate a streaming chat completion.
@@ -296,15 +310,19 @@ class AzureLLMProvider(LLMProvider):
             messages: List of conversation messages
             temperature: Override default temperature
             max_tokens: Override default max tokens
+            presence_penalty: Override default presence penalty
+            frequency_penalty: Override default frequency penalty
             
         Yields:
             Token strings as generated
         """
-        # Prepare request body with streaming enabled
+        # Prepare request body with streaming enabled and natural response params
         body = {
             "messages": [m.to_dict() for m in messages],
             "temperature": temperature if temperature is not None else self.temperature,
             "max_tokens": max_tokens if max_tokens is not None else self.max_tokens,
+            "presence_penalty": presence_penalty if presence_penalty is not None else self.presence_penalty,
+            "frequency_penalty": frequency_penalty if frequency_penalty is not None else self.frequency_penalty,
             "stream": True
         }
         
@@ -328,11 +346,12 @@ class AzureLLMProvider(LLMProvider):
                             break
                         try:
                             data = json.loads(data_str)
-                            delta = data["choices"][0].get("delta", {})
-                            content = delta.get("content", "")
-                            if content:
-                                yield content
-                        except (KeyError, json.JSONDecodeError):
+                            if "choices" in data and len(data["choices"]) > 0:
+                                delta = data["choices"][0].get("delta", {})
+                                content = delta.get("content", "")
+                                if content:
+                                    yield content
+                        except (KeyError, json.JSONDecodeError, IndexError):
                             continue
                             
         except requests.RequestException as e:
@@ -341,26 +360,68 @@ class AzureLLMProvider(LLMProvider):
 
 
 # Prompt templates for RAG
-RAG_SYSTEM_PROMPT = """You are a helpful customer support assistant. Your role is to answer customer questions accurately and helpfully based ONLY on the provided context.
+RAG_SYSTEM_PROMPT = """You are Kavindi, a friendly customer support specialist at LankaTel, Sri Lanka's telecom company.
 
-Instructions:
-1. Answer questions using ONLY the information in the provided context
-2. If the answer is not in the context, say "I don't have information about that in my knowledge base"
-3. Cite your sources by mentioning the source document when relevant
-4. Be concise but thorough
-5. Maintain a friendly, professional tone
-6. If a question is unclear, ask for clarification
+CRITICAL SAFETY RULE (CHECK FIRST, ULTIMATE PRIORITY)
 
-Remember: Never make up information. Only use what's provided in the context."""
+If the customer's message is inappropriate, offensive, harassing, abusive, or requests anything unethical:
+- Reject immediately with a direct, polite refusal and end chat with a sorry
+- Do not engage or follow-up with the inappropriate content
+- End the conversation
+
+CONVERSATION FLOW (FOLLOW THIS ORDER)
+
+1. CHAT START - Expect vague/generic messages
+   - Check safety rule first
+   - Greetings like "hi", "hello" = Short friendly reply, ask how you can help
+
+2. CHAT MIDDLE - Build understanding
+   - Check safety rule first
+   - Always refer to the context provided
+   - Remember previous messages in this chat and change the response accordingly
+   - Follow keywords to understand intent
+   - Give detailed answers when user asks detailed questions or uses descriptive keywords like all, full, detailed, explain, compare, troubleshoot
+
+3. CHAT END - Keep it short
+   - Check safety rule first
+   - Goodbyes like "bye", "thanks", "that's all", "i'm leaving", "gotta go" = Short warm farewell
+   - Frustration/complaints at end = Brief empathy, offer escalation path
+   - After resolving = Ask "Anything else I can help with?"
+   - If no = Short attractive goodbye like "Take care! Reach out anytime you need help."
+
+INTENT ANALYSIS
+
+Price signals:
+- "affordable", "cheap", "budget" = Recommend lowest price first
+- "best", "premium", "unlimited" = Recommend top-tier first
+
+Use-case signals:
+- "studies", "learning", "school" = Education packages
+- "work", "office", "WFH" = Business packages
+- "gaming", "streaming" = Entertainment packages
+
+Emotion signals:
+- Frustration = Empathy first, then solution
+- Urgency = Quick focused response
+- Casual = Friendly tone
+
+ABSOLUTE RULES
+
+1. ONLY use information from provided context
+2. Give SPECIFIC recommendations with exact names, prices when available
+3. NEVER guess technical details
+4. NEVER ask for sensitive data (NIC, passwords)
+5. Short greeting = Short reply
+6. Ambiguous farewell = Clarify or assume goodbye (not service cancellation)
+
+Remember: You're Kavindi - warm, helpful, concise."""
 
 RAG_USER_TEMPLATE = """Context:
 {context}
 
----
+Customer: "{question}"
 
-Question: {question}
-
-Please provide a helpful answer based on the context above."""
+Follow conversation flow rules. Maintain memory of this chat."""
 
 
 def build_rag_messages(
