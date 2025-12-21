@@ -2,13 +2,18 @@
 python-dotenv>=1.0.0
 requests>=2.31.0
 tiktoken>=0.5.0
+aiohttp>=3.9.0
 
 # Vector Store
 chromadb>=0.4.22
 
+# Azure Speech Services (Voice Features)
+azure-cognitiveservices-speech>=1.35.0
+
 # Development
 pytest>=7.4.0
 pytest-cov>=4.1.0
+pytest-asyncio>=0.23.0
 
 # Optional: Code quality (uncomment for development)
 # black>=23.0.0

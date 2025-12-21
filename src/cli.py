@@ -8,6 +8,7 @@ Commands:
     ingest      - Ingest documents into the vector store
     query       - Ask a single question
     chat        - Start an interactive chat session
+    voice-chat  - Start an interactive voice chat session
     stats       - Show system statistics
     clear       - Clear the vector store
 
@@ -15,6 +16,7 @@ Usage:
     python -m src.cli ingest data/samples/sample_faq.jsonl
     python -m src.cli query "How do I reset my password?"
     python -m src.cli chat
+    python -m src.cli voice-chat
     python -m src.cli stats
 
 For help on a specific command:
@@ -327,11 +329,174 @@ def cmd_test(args: argparse.Namespace) -> int:
         print(f"   ❌ Chunker error: {e}")
         tests_failed += 1
     
+    # Test 6: Azure Speech (optional)
+    print("\n6. Azure Speech Services...")
+    try:
+        if settings.speech.is_configured:
+            from src.core.speech import SpeechService
+            service = SpeechService()
+            print(f"   ✅ Speech configured (voice={settings.speech.voice_name})")
+            tests_passed += 1
+        else:
+            print("   ⏭️  Not configured (optional)")
+    except Exception as e:
+        print(f"   ❌ Speech error: {e}")
+        tests_failed += 1
+    
     # Summary
     print("\n" + "-" * 50)
     print(f"Results: {tests_passed} passed, {tests_failed} failed")
     
     return 0 if tests_failed == 0 else 1
+
+
+def cmd_voice_chat(args: argparse.Namespace) -> int:
+    """
+    Start an interactive voice chat session.
+    
+    Uses Azure Speech Services for speech-to-text and text-to-speech.
+    """
+    from src.pipeline.rag_pipeline import RAGPipeline
+    from src.core.speech import SpeechService
+    
+    print("\n" + "=" * 60)
+    print("🎙️  Customer Support Agent - Voice Chat")
+    print("=" * 60)
+    print("Speak your questions. Say 'goodbye' or 'exit' to quit.")
+    print("Press Ctrl+C to stop at any time.")
+    print("-" * 60)
+    
+    try:
+        # Initialize services
+        pipeline = RAGPipeline()
+        speech = SpeechService()
+        
+        if pipeline.document_count == 0:
+            print("⚠️  No documents in vector store. Run 'ingest' first.")
+            return 1
+        
+        print(f"📚 Knowledge base: {pipeline.document_count} chunks loaded")
+        print(f"🔊 Voice: {settings.speech.voice_name}")
+        print()
+        
+        # Greeting
+        greeting = "Hello! I'm your customer support assistant. How can I help you today?"
+        print(f"🤖 Bot: {greeting}")
+        speech.speak(greeting)
+        
+        while True:
+            try:
+                # Listen for user speech
+                print("\n🎤 Listening... (speak now)")
+                user_text = speech.recognize_from_microphone()
+                
+                if not user_text:
+                    print("   (no speech detected, try again)")
+                    continue
+                
+                print(f"👤 You: {user_text}")
+                
+                # Check for exit commands
+                exit_phrases = ["goodbye", "exit", "quit", "bye", "stop"]
+                if any(phrase in user_text.lower() for phrase in exit_phrases):
+                    farewell = "Goodbye! Have a great day!"
+                    print(f"🤖 Bot: {farewell}")
+                    speech.speak(farewell)
+                    break
+                
+                # Get response from RAG pipeline
+                print("🤔 Thinking...")
+                response = pipeline.chat(user_text)
+                
+                # Speak the response
+                print(f"🤖 Bot: {response.answer}")
+                speech.speak(response.answer)
+                
+            except KeyboardInterrupt:
+                print("\n\n👋 Voice chat interrupted.")
+                break
+        
+        return 0
+        
+    except Exception as e:
+        print(f"❌ Voice chat failed: {e}")
+        logger.exception("Voice chat error")
+        return 1
+
+
+def cmd_realtime_voice(args: argparse.Namespace) -> int:
+    """
+    Start an interactive real-time voice chat session.
+    
+    Uses the new full-duplex streaming architecture with:
+    - Sub-500ms response latency
+    - Barge-in support (interrupt while speaking)
+    - Natural turn-taking with back-channels
+    - Streaming STT/TTS for immediate response
+    """
+    import asyncio
+    from src.realtime import RealtimeVoiceAgent, VoiceAgentConfig
+    from src.realtime.voice_agent import print_banner
+    from src.realtime.rag_engine import RealtimeRAGEngine
+    from src.realtime.events import EventBus
+    
+    print_banner()
+    
+    try:
+        # Check prerequisites
+        if not settings.speech.is_configured:
+            print("❌ Azure Speech not configured.")
+            print("   Set AZURE_SPEECH_API_KEY and AZURE_SPEECH_REGION in .env")
+            return 1
+        
+        # Check vector store
+        from src.core.vectorstore import ChromaVectorStore
+        store = ChromaVectorStore()
+        if store.count() == 0:
+            print("⚠️  No documents in vector store. Run 'ingest' first.")
+            return 1
+        
+        print(f"📚 Knowledge base: {store.count()} chunks loaded")
+        print(f"🔊 Voice: {settings.speech.voice_name}")
+        print(f"🎤 Barge-in: {'enabled' if args.barge_in else 'disabled'}")
+        print()
+        
+        # Create agent config
+        config = VoiceAgentConfig(
+            auto_greet=not args.no_greet,
+            enable_barge_in=args.barge_in,
+            idle_timeout_seconds=args.timeout,
+        )
+        
+        if args.greeting:
+            config.greeting = args.greeting
+        
+        # Create and run agent
+        agent = RealtimeVoiceAgent(config)
+        
+        # Run async event loop
+        asyncio.run(agent.run())
+        
+        # Print session stats
+        print("\n" + "-" * 60)
+        print("📊 Session Statistics:")
+        print(f"   Turns completed: {agent.turn_count}")
+        print(f"   Topics discussed: {', '.join(agent.session_topics) or 'none'}")
+        stats = agent.stats
+        if 'rag_stats' in stats:
+            rag = stats['rag_stats']
+            print(f"   RAG cache hit rate: {rag.get('cache_hit_rate', 0)*100:.0f}%")
+        print()
+        
+        return 0
+        
+    except KeyboardInterrupt:
+        print("\n\n👋 Voice chat interrupted.")
+        return 0
+    except Exception as e:
+        print(f"❌ Real-time voice chat failed: {e}")
+        logger.exception("Real-time voice chat error")
+        return 1
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -450,6 +615,48 @@ Examples:
         help="Test system configuration"
     )
     test_parser.set_defaults(func=cmd_test)
+    
+    # Voice chat command (legacy turn-based)
+    voice_parser = subparsers.add_parser(
+        "voice-chat",
+        help="Start an interactive voice chat session (turn-based)"
+    )
+    voice_parser.set_defaults(func=cmd_voice_chat)
+    
+    # Real-time voice chat command (new full-duplex)
+    realtime_parser = subparsers.add_parser(
+        "realtime",
+        help="Start real-time voice chat (full-duplex, low-latency)"
+    )
+    realtime_parser.add_argument(
+        "--no-greet",
+        action="store_true",
+        help="Skip automatic greeting"
+    )
+    realtime_parser.add_argument(
+        "--greeting", "-g",
+        type=str,
+        help="Custom greeting message"
+    )
+    realtime_parser.add_argument(
+        "--barge-in",
+        action="store_true",
+        default=True,
+        help="Enable barge-in (interrupt while speaking)"
+    )
+    realtime_parser.add_argument(
+        "--no-barge-in",
+        action="store_false",
+        dest="barge_in",
+        help="Disable barge-in"
+    )
+    realtime_parser.add_argument(
+        "--timeout", "-t",
+        type=float,
+        default=settings.realtime.idle_timeout_s,
+        help=f"Idle timeout in seconds (default: {settings.realtime.idle_timeout_s})"
+    )
+    realtime_parser.set_defaults(func=cmd_realtime_voice)
     
     return parser
 

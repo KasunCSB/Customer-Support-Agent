@@ -156,8 +156,8 @@ class RetrievalConfig:
         top_k: Number of chunks to retrieve per query
         context_token_budget: Maximum tokens to include in LLM context
     """
-    top_k: int = field(default_factory=lambda: get_env_int("RETRIEVAL_TOP_K", 5))
-    context_token_budget: int = field(default_factory=lambda: get_env_int("CONTEXT_TOKEN_BUDGET", 3000))
+    top_k: int = field(default_factory=lambda: get_env_int("RETRIEVAL_TOP_K", 3))
+    context_token_budget: int = field(default_factory=lambda: get_env_int("CONTEXT_TOKEN_BUDGET", 2000))
 
 
 @dataclass
@@ -172,7 +172,7 @@ class LLMConfig:
         frequency_penalty: Penalty for repeating exact phrases
     """
     temperature: float = field(default_factory=lambda: get_env_float("LLM_TEMPERATURE", 0.7))
-    max_tokens: int = field(default_factory=lambda: get_env_int("LLM_MAX_TOKENS", 800))
+    max_tokens: int = field(default_factory=lambda: get_env_int("LLM_MAX_TOKENS", 300))
     presence_penalty: float = field(default_factory=lambda: get_env_float("LLM_PRESENCE_PENALTY", 0.1))
     frequency_penalty: float = field(default_factory=lambda: get_env_float("LLM_FREQUENCY_PENALTY", 0.1))
 
@@ -208,6 +208,63 @@ class LoggingConfig:
 
 
 @dataclass
+class SpeechConfig:
+    """
+    Azure Speech Services configuration for voice features.
+    
+    Attributes:
+        api_key: Azure Speech API key
+        region: Azure region (e.g., eastus, westus2)
+        language: Speech recognition language (BCP-47 format)
+        voice_name: TTS voice name
+        speech_timeout: Max seconds to wait for speech input
+        silence_timeout: Seconds of silence to end recognition
+    """
+    api_key: str = field(default_factory=lambda: get_env("AZURE_SPEECH_API_KEY"))
+    region: str = field(default_factory=lambda: get_env("AZURE_SPEECH_REGION", "eastus"))
+    language: str = field(default_factory=lambda: get_env("SPEECH_LANGUAGE", "en-US"))
+    voice_name: str = field(default_factory=lambda: get_env("SPEECH_VOICE_NAME", "en-US-JennyNeural"))
+    speech_timeout: float = field(default_factory=lambda: get_env_float("SPEECH_TIMEOUT", 10.0))
+    silence_timeout: float = field(default_factory=lambda: get_env_float("SILENCE_TIMEOUT", 1.5))
+    
+    def validate(self) -> bool:
+        """Validate that required Speech settings are configured."""
+        if not self.api_key:
+            raise ValueError("AZURE_SPEECH_API_KEY is required for voice features")
+        if not self.region:
+            raise ValueError("AZURE_SPEECH_REGION is required for voice features")
+        return True
+    
+    @property
+    def is_configured(self) -> bool:
+        """Check if speech services are configured."""
+        return bool(self.api_key and self.region)
+
+
+@dataclass
+class RealtimeConfig:
+    """
+    Real-time voice agent configuration.
+    
+    Attributes:
+        target_latency_ms: Target response latency in milliseconds
+        end_silence_ms: Silence duration to detect turn end
+        enable_barge_in: Allow user to interrupt agent
+        enable_backchannels: Emit back-channel responses
+        enable_speculative_rag: Start RAG on partial intent
+        idle_timeout_s: Seconds of silence before prompting
+        speaking_rate: TTS speaking rate (0.5 to 2.0)
+    """
+    target_latency_ms: int = field(default_factory=lambda: get_env_int("REALTIME_TARGET_LATENCY_MS", 500))
+    end_silence_ms: int = field(default_factory=lambda: get_env_int("REALTIME_END_SILENCE_MS", 800))
+    enable_barge_in: bool = field(default_factory=lambda: get_env_bool("REALTIME_ENABLE_BARGE_IN", True))
+    enable_backchannels: bool = field(default_factory=lambda: get_env_bool("REALTIME_ENABLE_BACKCHANNELS", True))
+    enable_speculative_rag: bool = field(default_factory=lambda: get_env_bool("REALTIME_SPECULATIVE_RAG", True))
+    idle_timeout_s: float = field(default_factory=lambda: get_env_float("REALTIME_IDLE_TIMEOUT_S", 30.0))
+    speaking_rate: float = field(default_factory=lambda: get_env_float("REALTIME_SPEAKING_RATE", 1.0))
+
+
+@dataclass
 class Settings:
     """
     Main settings container aggregating all configuration sections.
@@ -232,6 +289,8 @@ class Settings:
     llm: LLMConfig = field(default_factory=LLMConfig)
     embedding: EmbeddingConfig = field(default_factory=EmbeddingConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
+    speech: SpeechConfig = field(default_factory=SpeechConfig)
+    realtime: RealtimeConfig = field(default_factory=RealtimeConfig)
     
     # Application-level settings
     app_env: str = field(default_factory=lambda: get_env("APP_ENV", "development"))

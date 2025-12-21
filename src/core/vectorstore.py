@@ -233,11 +233,13 @@ class ChromaVectorStore(VectorStore):
             path=self.persist_directory,
             settings=ChromaSettings(anonymized_telemetry=False)
         )
-        
-        # Get or create collection
+
+        # Get or create collection.
+        # Keep metadata minimal for compatibility across Chroma versions.
+        # (Setting advanced HNSW params via metadata has caused startup failures in some environments.)
         self._collection = self._client.get_or_create_collection(
             name=self.collection_name,
-            metadata={"hnsw:space": "cosine"}  # Use cosine similarity
+            metadata={"hnsw:space": "cosine"},
         )
         
         logger.info(
@@ -366,7 +368,7 @@ class ChromaVectorStore(VectorStore):
     def clear(self) -> None:
         """Remove all documents from the collection."""
         # Chroma doesn't have a direct clear method, so recreate collection
-        self._client.delete_collection(self.collection_name)
+        self._client.delete_collection(name=self.collection_name)
         self._collection = self._client.create_collection(
             name=self.collection_name,
             metadata={"hnsw:space": "cosine"}
