@@ -16,8 +16,6 @@ venv/
 
 # Data and persistence
 vectorstore/
-data/raw/
-data/processed/
 
 # Node / frontend build artifacts
 ui/node_modules/
