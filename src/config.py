@@ -296,6 +296,17 @@ class Settings:
     app_env: str = field(default_factory=lambda: get_env("APP_ENV", "development"))
     enable_embedding_cache: bool = field(default_factory=lambda: get_env_bool("ENABLE_EMBEDDING_CACHE", True))
     
+    # CORS configuration - comma-separated list of allowed origins
+    cors_origins: list = field(default_factory=lambda: [
+        origin.strip() for origin in 
+        get_env("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+        if origin.strip()
+    ])
+    
+    # Rate limiting configuration
+    rate_limit_requests: int = field(default_factory=lambda: get_env_int("RATE_LIMIT_REQUESTS", 60))
+    rate_limit_window: int = field(default_factory=lambda: get_env_int("RATE_LIMIT_WINDOW_SECONDS", 60))
+    
     @property
     def is_development(self) -> bool:
         """Check if running in development mode."""

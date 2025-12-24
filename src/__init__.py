@@ -17,9 +17,9 @@ Architecture follows SOLID principles:
 - Dependency Inversion: Depend on abstractions, not concretions
 """
 
-__version__ = "0.1.0"
-__author__ = "Your Name"
-__email__ = "your.email@example.com"
+__version__ = "5.0.0"
+__author__ = "Kasun Chanaka"
+__email__ = "kasuncsb@gmail.com"
 
 from src.config import settings
 

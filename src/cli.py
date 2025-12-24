@@ -24,7 +24,9 @@ For help on a specific command:
 """
 
 import argparse
+import json
 import sys
+import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -54,11 +56,207 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     try:
         ingester = DocumentIngester()
         path = Path(args.path)
+
+        def build_processed_kb_for_lankatel(raw_dir: Path) -> Optional[Path]:
+            """Build data/processed/lankatel/kb.jsonl from data/raw/lankatel/*.jsonl.
+
+            This matches the previously recommended workflow but runs automatically
+            when the user ingests the Lankatel raw directory.
+            """
+
+            def to_text(item: dict) -> Optional[str]:
+                def _as_lines(prefix: str, values: list[str]) -> str:
+                    cleaned = [v.strip() for v in values if isinstance(v, str) and v.strip()]
+                    if not cleaned:
+                        return ""
+                    return prefix + "\n" + "\n".join(f"- {v}" for v in cleaned)
+
+                # 1) Direct text fields
+                text = item.get("text") or item.get("content") or item.get("body")
+                if isinstance(text, str) and text.strip():
+                    header = []
+                    for k in ("topic", "name", "title"):
+                        v = item.get(k)
+                        if isinstance(v, str) and v.strip():
+                            header.append(f"{k.capitalize()}: {v.strip()}")
+                    return ("\n".join(header) + ("\n\n" if header else "") + text.strip()).strip()
+
+                # 2) FAQ style
+                q = item.get("question")
+                a = item.get("answer")
+                if isinstance(q, str) or isinstance(a, str):
+                    q_s = (q or "").strip() if isinstance(q, str) else ""
+                    a_s = (a or "").strip() if isinstance(a, str) else ""
+                    if q_s or a_s:
+                        return f"Question: {q_s}\n\nAnswer: {a_s}".strip()
+
+                # 3) Common knowledge schemas
+                description = item.get("description")
+                if isinstance(description, str) and description.strip():
+                    header = []
+                    for k in ("topic", "name", "service_id", "package_id", "channel", "category"):
+                        v = item.get(k)
+                        if isinstance(v, str) and v.strip():
+                            header.append(f"{k.replace('_', ' ').title()}: {v.strip()}")
+                        elif isinstance(v, (int, float, bool)):
+                            header.append(f"{k.replace('_', ' ').title()}: {v}")
+                    return ("\n".join(header) + ("\n\n" if header else "") + description.strip()).strip()
+
+                scenario = item.get("scenario")
+                resolution = item.get("resolution")
+                if isinstance(scenario, str) or isinstance(resolution, str):
+                    s = scenario.strip() if isinstance(scenario, str) else ""
+                    r = resolution.strip() if isinstance(resolution, str) else ""
+                    topic = item.get("topic")
+                    t = topic.strip() if isinstance(topic, str) else ""
+                    parts = []
+                    if t:
+                        parts.append(f"Topic: {t}")
+                    if s:
+                        parts.append(f"Scenario: {s}")
+                    if r:
+                        parts.append(f"Resolution: {r}")
+                    if parts:
+                        return "\n\n".join(parts).strip()
+
+                variants = item.get("variants")
+                if isinstance(variants, list):
+                    block = _as_lines("Variants:", [str(v) for v in variants])
+                    key = item.get("key")
+                    k = key.strip() if isinstance(key, str) else ""
+                    if block:
+                        return (f"Message Key: {k}\n\n{block}" if k else block).strip()
+
+                messages = item.get("messages")
+                if isinstance(messages, list) and messages:
+                    lines: list[str] = []
+                    for m in messages:
+                        if not isinstance(m, dict):
+                            continue
+                        role = m.get("role")
+                        content = m.get("content")
+                        if isinstance(role, str) and isinstance(content, str) and content.strip():
+                            lines.append(f"{role.strip()}: {content.strip()}")
+                    if lines:
+                        return "\n".join(lines).strip()
+
+                # 4) Generic fallback: flatten primitives into key: value lines
+                pairs: list[str] = []
+                for k, v in item.items():
+                    if k in {"id", "source", "index"}:
+                        continue
+                    if v is None:
+                        continue
+                    if isinstance(v, str) and v.strip():
+                        pairs.append(f"{k.replace('_', ' ').title()}: {v.strip()}")
+                    elif isinstance(v, (int, float, bool)):
+                        pairs.append(f"{k.replace('_', ' ').title()}: {v}")
+                    elif isinstance(v, list) and v:
+                        simple = [str(x).strip() for x in v if str(x).strip()]
+                        if simple:
+                            pairs.append(f"{k.replace('_', ' ').title()}: {', '.join(simple)}")
+
+                return "\n".join(pairs).strip() if pairs else None
+
+            repo_root = project_root
+            expected_raw = (repo_root / "data" / "raw" / "lankatel").resolve()
+            if raw_dir.resolve() != expected_raw:
+                return None
+
+            jsonl_files = sorted(p for p in raw_dir.glob("*.jsonl") if p.is_file())
+            if not jsonl_files:
+                return None
+
+            out_dir = repo_root / "data" / "processed" / "lankatel"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_file = out_dir / "kb.jsonl"
+
+            written = 0
+            scanned_files = 0
+            per_file_written: dict[str, int] = {}
+            skipped_invalid_json = 0
+            skipped_no_text = 0
+            with out_file.open("w", encoding="utf-8") as out:
+                for src in jsonl_files:
+                    scanned_files += 1
+                    file_written = 0
+                    with src.open("r", encoding="utf-8") as f:
+                        for i, line in enumerate(f):
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                item = json.loads(line)
+                            except json.JSONDecodeError:
+                                skipped_invalid_json += 1
+                                continue
+
+                            text = to_text(item)
+                            if not text:
+                                skipped_no_text += 1
+                                continue
+
+                            rec = {
+                                "id": item.get("id") or f"{src.stem}_{i:06d}",
+                                "text": text,
+                                "source": src.name,
+                            }
+
+                            for key in ("category", "topic"):
+                                val = item.get(key)
+                                if isinstance(val, str) and val.strip():
+                                    rec[key] = val.strip()
+
+                            tags = item.get("tags")
+                            if isinstance(tags, list):
+                                tags_str = ",".join(str(t).strip() for t in tags if str(t).strip())
+                                if tags_str:
+                                    rec["tags"] = tags_str
+
+                            for k, v in item.items():
+                                if k in rec or k in {"text", "content", "body", "question", "answer", "tags"}:
+                                    continue
+                                if isinstance(v, (str, int, float, bool)):
+                                    rec[k] = v
+
+                            out.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                            written += 1
+                            file_written += 1
+
+                    per_file_written[src.name] = file_written
+
+            if written:
+                print(f"🧱 Built processed KB: {out_file} ({written} records)")
+                print(f"📄 Scanned {scanned_files} JSONL files from {raw_dir}")
+
+                zero_files = [name for name, n in per_file_written.items() if n == 0]
+                if zero_files:
+                    preview = ", ".join(zero_files[:8])
+                    suffix = "" if len(zero_files) <= 8 else f" (+{len(zero_files) - 8} more)"
+                    print(
+                        "ℹ️ Files with 0 KB records (no text/content/body or question/answer fields): "
+                        f"{preview}{suffix}"
+                    )
+
+                if skipped_invalid_json or skipped_no_text:
+                    parts = []
+                    if skipped_invalid_json:
+                        parts.append(f"{skipped_invalid_json} invalid JSON lines")
+                    if skipped_no_text:
+                        parts.append(f"{skipped_no_text} lines without supported text fields")
+                    print("ℹ️ Skipped: " + ", ".join(parts))
+                return out_file
+
+            return None
         
         if path.is_file():
             result = ingester.ingest_file(path)
         elif path.is_dir():
-            result = ingester.ingest_directory(path, recursive=args.recursive)
+            kb_file = build_processed_kb_for_lankatel(path)
+            if kb_file is not None:
+                result = ingester.ingest_file(kb_file)
+            else:
+                result = ingester.ingest_directory(path, recursive=args.recursive)
         else:
             print(f"❌ Path not found: {args.path}")
             return 1
@@ -151,7 +349,7 @@ def cmd_chat(args: argparse.Namespace) -> int:
             return 1
         
         print(f"📚 Knowledge base: {pipeline.document_count} chunks loaded\n")
-        
+
         while True:
             try:
                 # Get user input
@@ -175,8 +373,8 @@ def cmd_chat(args: argparse.Namespace) -> int:
                     print(f"   Memory turns: {stats['memory_turns']}")
                     print()
                     continue
-                
-                # Process query
+
+                # Process query (RAG)
                 if args.stream:
                     print("Bot: ", end="", flush=True)
                     for token in pipeline.stream_query(user_input):
@@ -546,8 +744,8 @@ Examples:
     ingest_parser.add_argument(
         "--recursive", "-r",
         action="store_true",
-        default=True,
-        help="Process directories recursively (default: True)"
+        default=False,
+        help="Process directories recursively"
     )
     ingest_parser.set_defaults(func=cmd_ingest)
     

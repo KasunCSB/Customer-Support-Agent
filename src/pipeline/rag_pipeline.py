@@ -26,6 +26,7 @@ Usage:
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Iterator
 from datetime import datetime
+import threading
 
 from src.core.embeddings import EmbeddingProvider, AzureEmbeddingProvider
 from src.core.vectorstore import VectorStore, ChromaVectorStore
@@ -196,21 +197,41 @@ class RAGPipeline:
         self.system_prompt = system_prompt or RAG_SYSTEM_PROMPT
         self.context_token_budget = settings.retrieval.context_token_budget
         
-        # Conversation memory
-        self.memory = ConversationMemory(max_turns=memory_turns) if enable_memory else None
+        # Conversation memory (session-aware)
+        self._memory_enabled = enable_memory
+        self._memory_turns = memory_turns
+        self._default_memory = ConversationMemory(max_turns=memory_turns) if enable_memory else None
+        self._session_memories: Dict[str, ConversationMemory] = {}
+        self._memory_lock = threading.Lock()
         
         logger.info(
             f"Initialized RAGPipeline: "
             f"memory={'enabled' if enable_memory else 'disabled'}, "
             f"context_budget={self.context_token_budget}"
         )
+
+    def _get_memory(self, session_id: Optional[str]) -> Optional[ConversationMemory]:
+        """Get (or create) the conversation memory buffer for a session."""
+        if not self._memory_enabled:
+            return None
+
+        if not session_id:
+            return self._default_memory
+
+        with self._memory_lock:
+            mem = self._session_memories.get(session_id)
+            if mem is None:
+                mem = ConversationMemory(max_turns=self._memory_turns)
+                self._session_memories[session_id] = mem
+            return mem
     
     def query(
         self,
         question: str,
         top_k: Optional[int] = None,
         include_history: bool = False,
-        filter_metadata: Optional[Dict[str, Any]] = None
+        filter_metadata: Optional[Dict[str, Any]] = None,
+        session_id: Optional[str] = None
     ) -> RAGResponse:
         """
         Process a question through the RAG pipeline.
@@ -243,7 +264,8 @@ class RAGPipeline:
             context = "No relevant information found in the knowledge base."
         
         # Step 3: Build messages
-        history = self.memory.get_history() if (self.memory and include_history) else None
+        memory = self._get_memory(session_id)
+        history = memory.get_history() if (memory and include_history) else None
         messages = build_rag_messages(
             question=question,
             context=context,
@@ -265,8 +287,8 @@ class RAGPipeline:
         )
         
         # Step 6: Update memory
-        if self.memory:
-            self.memory.add_turn(question, chat_response.content)
+        if memory:
+            memory.add_turn(question, chat_response.content)
         
         logger.info(
             f"Generated response: {len(response.answer)} chars, "
@@ -279,7 +301,8 @@ class RAGPipeline:
     def chat(
         self,
         message: str,
-        top_k: Optional[int] = None
+        top_k: Optional[int] = None,
+        session_id: Optional[str] = None
     ) -> RAGResponse:
         """
         Send a message in conversational mode.
@@ -293,14 +316,15 @@ class RAGPipeline:
         Returns:
             RAGResponse with answer
         """
-        return self.query(message, top_k=top_k, include_history=True)
+        return self.query(message, top_k=top_k, include_history=True, session_id=session_id)
     
     def stream_query(
         self,
         question: str,
         top_k: Optional[int] = None,
         filter_metadata: Optional[Dict[str, Any]] = None,
-        include_history: bool = True
+        include_history: bool = True,
+        session_id: Optional[str] = None
     ) -> Iterator[str]:
         """
         Stream a response token by token.
@@ -332,7 +356,8 @@ class RAGPipeline:
             context = "No relevant information found in the knowledge base."
         
         # Build messages with conversation history
-        history = self.memory.get_history() if (self.memory and include_history) else None
+        memory = self._get_memory(session_id)
+        history = memory.get_history() if (memory and include_history) else None
         messages = build_rag_messages(
             question=question,
             context=context,
@@ -347,14 +372,29 @@ class RAGPipeline:
             yield token
         
         # Update memory after streaming completes
-        if self.memory:
-            self.memory.add_turn(question, full_response)
+        if memory:
+            memory.add_turn(question, full_response)
     
-    def clear_memory(self) -> None:
-        """Clear conversation memory."""
-        if self.memory:
-            self.memory.clear()
-            logger.info("Cleared conversation memory")
+    def clear_memory(self, session_id: Optional[str] = None) -> None:
+        """Clear conversation memory (optionally for a single session)."""
+        if not self._memory_enabled:
+            return
+
+        if session_id:
+            with self._memory_lock:
+                mem = self._session_memories.get(session_id)
+                if mem:
+                    mem.clear()
+            logger.info(f"Cleared conversation memory for session {session_id}")
+            return
+
+        # Clear all memories
+        if self._default_memory:
+            self._default_memory.clear()
+        with self._memory_lock:
+            for mem in self._session_memories.values():
+                mem.clear()
+        logger.info("Cleared conversation memory")
     
     @property
     def document_count(self) -> int:
@@ -370,7 +410,7 @@ class RAGPipeline:
         """
         return {
             "document_count": self.document_count,
-            "memory_enabled": self.memory is not None,
-            "memory_turns": len(self.memory.messages) // 2 if self.memory else 0,
+            "memory_enabled": self._memory_enabled,
+            "memory_turns": len(self._default_memory.messages) // 2 if self._default_memory else 0,
             "context_token_budget": self.context_token_budget
         }

@@ -165,18 +165,33 @@ class DocumentLoader:
         index: int
     ) -> Optional[Document]:
         """Parse a JSON item into a Document."""
-        # Try different common text field names
-        text_fields = ["text", "content", "body", "answer", "question"]
+        # Prefer rich text fields first.
+        # IMPORTANT: For FAQ-style entries we want to embed Question+Answer together,
+        # not only one field.
+        text_fields = ["text", "content", "body"]
         text = None
-        
+
         for field in text_fields:
-            if field in item:
+            if field in item and isinstance(item[field], str) and item[field].strip():
                 text = item[field]
                 break
-        
-        # If no standard field, concatenate question + answer for FAQ style
-        if not text and "question" in item and "answer" in item:
-            text = f"Question: {item['question']}\n\nAnswer: {item['answer']}"
+
+        # FAQ style: concatenate question + answer when available
+        if text is None and "question" in item and "answer" in item:
+            q = str(item.get("question", "")).strip()
+            a = str(item.get("answer", "")).strip()
+            if q or a:
+                text = f"Question: {q}\n\nAnswer: {a}".strip()
+
+        # If we still don't have text, fall back to either question or answer alone
+        if text is None and "question" in item and isinstance(item["question"], str):
+            q = item["question"].strip()
+            if q:
+                text = q
+        if text is None and "answer" in item and isinstance(item["answer"], str):
+            a = item["answer"].strip()
+            if a:
+                text = a
         
         if not text:
             return None

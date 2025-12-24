@@ -44,10 +44,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/customer-support-agent"
-Documentation = "https://github.com/yourusername/customer-support-agent#readme"
-Repository = "https://github.com/yourusername/customer-support-agent.git"
-Issues = "https://github.com/yourusername/customer-support-agent/issues"
+Homepage = "https://github.com/kasuncsb/customer-support-agent"
+Documentation = "https://github.com/kasuncsb/customer-support-agent#readme"
+Repository = "https://github.com/kasuncsb/customer-support-agent.git"
+Issues = "https://github.com/kasuncsb/customer-support-agent/issues"
 
 [project.scripts]
 customer-support-agent = "src.cli:main"

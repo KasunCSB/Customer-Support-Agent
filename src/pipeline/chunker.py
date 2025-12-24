@@ -64,7 +64,18 @@ class Chunk:
     def id(self) -> str:
         """Generate a unique ID for this chunk based on content and position."""
         import hashlib
-        content = f"{self.metadata.get('source', '')}:{self.index}:{self.text[:50]}"
+        # Include a document-level identity when available.
+        # Without this, chunks from different JSONL rows in the same source file can collide
+        # (same chunk index + same prefix text), causing Chroma upsert duplicate-id errors.
+        doc_identity = (
+            self.metadata.get("doc_id")
+            or self.metadata.get("document_id")
+            or self.metadata.get("id")
+            or self.metadata.get("document_index")
+            or self.metadata.get("index")
+            or ""
+        )
+        content = f"{self.metadata.get('source', '')}:{doc_identity}:{self.index}:{self.text[:50]}"
         return hashlib.sha256(content.encode()).hexdigest()[:16]
 
 
