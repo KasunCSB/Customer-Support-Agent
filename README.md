@@ -325,3 +325,23 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [LangChain](https://github.com/langchain-ai/langchain) for RAG patterns
 - [ChromaDB](https://github.com/chroma-core/chroma) for vector storage
 - [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service) for LLM and embeddings
+
+## 🐳 Docker (Single-container frontend + backend)
+
+This repository includes a `Dockerfile` that builds the Next.js UI and packages the Python backend into a single container. Nginx is used inside the container to reverse-proxy:
+
+- Requests under `/api/` -> forwarded to the Python backend (uvicorn) on port `8000`
+- All other requests -> forwarded to the Next.js server on port `3000`
+
+Build and run locally:
+
+```bash
+# From repository root
+docker build -t customer-support-agent:latest .
+docker run -p 80:80 customer-support-agent:latest
+```
+
+Notes on Azure deployment:
+- Push the image to a container registry (ACR or Docker Hub) and point your Azure Web App for Containers or Azure Container Instance to the image.
+- Azure expects a single HTTP port (80) to be served by the container; the image exposes port 80 and uses nginx as the entrypoint.
+

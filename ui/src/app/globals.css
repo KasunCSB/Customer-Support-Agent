@@ -1,0 +1,448 @@
+/* 
+ * Global Styles
+ * Uses Tailwind CSS directives - PostCSS will process these at build time
+ */
+
+/* stylelint-disable at-rule-no-unknown */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+/* stylelint-enable at-rule-no-unknown */
+
+/* Custom base styles */
+@layer base {
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-background-light dark:bg-background-dark;
+    @apply text-neutral-900 dark:text-neutral-100;
+    /* Subtle background gradient */
+    background-image: 
+      radial-gradient(ellipse at top, rgba(59, 130, 246, 0.05) 0%, transparent 50%),
+      radial-gradient(ellipse at bottom right, rgba(139, 92, 246, 0.05) 0%, transparent 50%);
+  }
+
+  .dark body {
+    background-image: 
+      radial-gradient(ellipse at top, rgba(59, 130, 246, 0.1) 0%, transparent 50%),
+      radial-gradient(ellipse at bottom right, rgba(139, 92, 246, 0.1) 0%, transparent 50%);
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-neutral-300/50 dark:bg-neutral-700/50 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-neutral-400/50 dark:bg-neutral-600/50;
+  }
+
+  /* Focus styles */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-primary-500/50 ring-offset-2;
+  }
+}
+
+/* Custom component styles */
+@layer components {
+  /* Prose/Markdown styling */
+  .prose {
+    @apply leading-relaxed;
+  }
+
+  .prose p {
+    @apply mb-2 last:mb-0;
+  }
+
+  .prose ul, .prose ol {
+    @apply mb-2 ml-4;
+  }
+
+  .prose li {
+    @apply mb-1;
+  }
+
+  .prose code {
+    @apply font-mono text-sm;
+  }
+
+  .prose pre {
+    @apply my-3;
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary-600 to-accent-600 bg-clip-text text-transparent;
+  }
+
+  /* Acrylic/Glass effect base */
+  .acrylic {
+    @apply bg-white/60 dark:bg-neutral-900/60;
+    @apply backdrop-blur-xl;
+    @apply border border-white/20 dark:border-white/10;
+    @apply shadow-xl shadow-black/5 dark:shadow-black/20;
+    @apply transition-all duration-300 ease-in-out;
+  }
+
+  .acrylic-light {
+    @apply bg-white/80 dark:bg-neutral-900/80;
+    @apply backdrop-blur-lg;
+    @apply border border-white/30 dark:border-white/10;
+    @apply transition-all duration-300 ease-in-out;
+  }
+
+  .acrylic-solid {
+    @apply bg-white/90 dark:bg-neutral-900/90;
+    @apply backdrop-blur-sm;
+    @apply border border-neutral-200/50 dark:border-neutral-700/50;
+    @apply transition-all duration-300 ease-in-out;
+  }
+
+  /* Floating pill buttons */
+  .pill-button {
+    @apply px-6 py-3 rounded-full;
+    @apply bg-white/80 dark:bg-neutral-800/80;
+    @apply backdrop-blur-lg;
+    @apply border border-white/20 dark:border-white/10;
+    @apply shadow-lg shadow-black/5 dark:shadow-black/20;
+    @apply hover:bg-white dark:hover:bg-neutral-700/80;
+    @apply hover:shadow-xl hover:scale-105;
+    @apply active:scale-95;
+    @apply transition-all duration-300;
+  }
+
+  /* Smooth chat bubble transitions */
+  .chat-bubble {
+    @apply transition-all duration-300 ease-out;
+    animation: slide-in-fade 0.4s ease-out;
+  }
+
+  @keyframes slide-in-fade {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .pill-button-primary {
+    @apply pill-button;
+    @apply bg-gradient-to-r from-primary-500 to-accent-500;
+    @apply text-white border-transparent;
+    @apply hover:shadow-primary-500/30;
+  }
+
+  /* Floating card */
+  .floating-card {
+    @apply rounded-2xl;
+    @apply bg-white/70 dark:bg-neutral-900/70;
+    @apply backdrop-blur-xl;
+    @apply border border-white/30 dark:border-white/10;
+    @apply shadow-2xl shadow-black/10 dark:shadow-black/30;
+  }
+}
+
+/* Custom utility classes */
+@layer utilities {
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+
+/* Gradient-only orb layers */
+.orb-grad-layer {
+  transform-origin: 50% 50%;
+  transform-box: fill-box;
+  filter: blur(0.8px);
+}
+
+.orb-grad-1 {
+  animation: orb-grad-drift calc(16s / var(--orbWave, 1)) ease-in-out infinite;
+}
+
+.orb-grad-2 {
+  animation: orb-grad-drift calc(20s / var(--orbWave, 1)) ease-in-out infinite reverse;
+}
+
+.orb-grad-3 {
+  animation: orb-grad-rotate calc(28s / var(--orbWave, 1)) linear infinite;
+}
+
+.orb-grad-4 {
+  animation: orb-grad-drift calc(24s / var(--orbWave, 1)) ease-in-out infinite;
+}
+
+.orb-grad-5 {
+  animation: orb-grad-rotate calc(38s / var(--orbWave, 1)) linear infinite reverse;
+}
+
+.orb-grad-6 {
+  animation: orb-grad-drift calc(30s / var(--orbWave, 1)) ease-in-out infinite reverse;
+}
+
+@keyframes orb-grad-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes orb-grad-drift {
+  0% {
+    transform: translate(-1.4%, -0.8%) rotate(0deg) scale(1.02);
+  }
+  50% {
+    transform: translate(1.6%, 1.1%) rotate(180deg) scale(1.05);
+  }
+  100% {
+    transform: translate(-1.2%, -0.6%) rotate(360deg) scale(1.02);
+  }
+}
+
+/* Voice transcript: movie-credits scroll */
+.credits-mask {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
+}
+
+.credits-scroll {
+  animation: credits-scroll var(--creditsDur, 24s) linear infinite;
+}
+
+@keyframes credits-scroll {
+  0% {
+    transform: translateY(18%);
+  }
+  100% {
+    transform: translateY(-100%);
+  }
+}
+  /* Safe area insets for mobile */
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Orb animations */
+@keyframes orb-breathing {
+  0%, 100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.02);
+    filter: brightness(1.05);
+  }
+}
+
+@keyframes orb-listening {
+  0%, 100% {
+    transform: scale(1);
+    filter: brightness(1.1) saturate(1.2);
+  }
+  50% {
+    transform: scale(1.08);
+    filter: brightness(1.2) saturate(1.3);
+  }
+}
+
+@keyframes orb-thinking {
+  0% {
+    transform: scale(1) rotate(0deg);
+    filter: brightness(1) hue-rotate(0deg);
+  }
+  50% {
+    transform: scale(1.03) rotate(2deg);
+    filter: brightness(1.1) hue-rotate(10deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    filter: brightness(1) hue-rotate(0deg);
+  }
+}
+
+@keyframes orb-speaking {
+  0%, 100% {
+    transform: scale(1);
+    filter: brightness(1.15) saturate(1.3);
+  }
+  25% {
+    transform: scale(1.02);
+  }
+  50% {
+    transform: scale(1.015);
+    filter: brightness(1.25) saturate(1.4);
+  }
+  75% {
+    transform: scale(1.025);
+  }
+}
+
+@keyframes wave-flow {
+  0% {
+    transform: translateX(-20px);
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateX(20px);
+    opacity: 0.6;
+  }
+}
+
+@keyframes wave-flow-reverse {
+  0% {
+    transform: translateX(20px) translateY(3px);
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateX(-20px) translateY(3px);
+    opacity: 0.4;
+  }
+}
+
+@keyframes particle-float {
+  0%, 100% {
+    transform: translateY(0) translateX(0);
+    opacity: 0.3;
+  }
+  25% {
+    transform: translateY(-5px) translateX(3px);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(-2px) translateX(-2px);
+    opacity: 0.8;
+  }
+  75% {
+    transform: translateY(-8px) translateX(1px);
+    opacity: 0.5;
+  }
+}
+
+@keyframes transcript-fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes transcript-fade-out {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+}
+
+.animate-orb-breathing {
+  animation: orb-breathing 6s ease-in-out infinite;
+}
+
+.animate-orb-listening {
+  animation: orb-listening 1.5s ease-in-out infinite;
+}
+
+.animate-orb-thinking {
+  animation: orb-thinking 2s ease-in-out infinite;
+}
+
+.animate-orb-speaking {
+  animation: orb-speaking 3s ease-in-out infinite;
+}
+
+.animate-wave-flow {
+  animation: wave-flow 3s ease-in-out infinite alternate;
+}
+
+.animate-wave-flow-reverse {
+  animation: wave-flow-reverse 4s ease-in-out infinite alternate;
+}
+
+.animate-particle-float {
+  animation: particle-float 3s ease-in-out infinite;
+}
+
+.animate-transcript-in {
+  animation: transcript-fade-in 0.5s ease-out forwards;
+}
+
+.animate-transcript-out {
+  animation: transcript-fade-out 0.5s ease-in forwards;
+}
+
+@keyframes wave-move {
+  0% { transform: translateX(-2.4%) translateY(0%) scale(1.01); }
+  50% { transform: translateX(2.4%) translateY(1.1%) scale(1.015); }
+  100% { transform: translateX(-2.4%) translateY(0%) scale(1.01); }
+}
+
+.animate-wave-slow {
+  animation: wave-move calc(8s / var(--orbWave, 1)) ease-in-out infinite;
+}
+
+.animate-wave-medium {
+  animation: wave-move calc(6s / var(--orbWave, 1)) ease-in-out infinite reverse;
+}
+
+.animate-wave-fast {
+  animation: wave-move calc(4s / var(--orbWave, 1)) ease-in-out infinite;
+}
+
+.animate-float {
+  animation: particle-float 4s ease-in-out infinite;
+}
+
+/* Graceful gradient color shift animation */
+@keyframes gradient-flow {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-gradient-flow {
+  background-size: 200% 200%;
+  animation: gradient-flow 8s ease-in-out infinite;
+}
