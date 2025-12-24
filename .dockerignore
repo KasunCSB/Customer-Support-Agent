@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# Git
+.git/
+.gitignore
+
+# Virtual env
+venv/
+.env
+.env.*
+
+# Data and persistence
+vectorstore/
+data/raw/
+data/processed/
+
+# Node / frontend build artifacts
+ui/node_modules/
+ui/.next/
+ui/.vercel/
+
+# Editor and OS files
+.vscode/
+.DS_Store
+
+# Test artifacts
+htmlcov/
+.pytest_cache/
