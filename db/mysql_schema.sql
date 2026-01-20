@@ -253,5 +253,3 @@ CREATE INDEX idx_actions_service_code ON actions (service_code);
 INSERT IGNORE INTO roles (id, name) VALUES (NULL, 'customer'), (NULL, 'agent'), (NULL, 'admin');
 
 -- End of schema
-
-```
