@@ -4,12 +4,11 @@
  * Proxy text-to-speech requests to backend Azure TTS service.
  */
 
-import { NextRequest } from 'next/server';
 import { uiMsg } from '@/lib/ui-messages';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { text, voice } = body;

@@ -10,11 +10,11 @@
 import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { MessageSquare, Mic, Waves } from 'lucide-react';
-import { CHAT_MODES, type ChatMode } from '@/lib/config';
+import { CHAT_MODES, type ChatModeId } from '@/lib/config';
 
 interface ModeSwitcherProps {
-  value: ChatMode;
-  onChange: (mode: ChatMode) => void;
+  value: ChatModeId;
+  onChange: (mode: ChatModeId) => void;
   className?: string;
 }
 
@@ -60,7 +60,7 @@ const ModeSwitcher = memo(function ModeSwitcher({
 
         {/* Mode buttons */}
         {CHAT_MODES.map((mode) => {
-          const Icon = icons[mode.icon as keyof typeof icons];
+          const Icon = icons[mode.icon];
           const isActive = value === mode.id;
 
           return (

@@ -17,12 +17,12 @@ import { ChatInterface } from '@/components/chat/ChatInterface';
 import { useSessions } from '@/hooks/useSessions';
 import { useChat } from '@/hooks/useChat';
 import { getFriendlyError } from '@/lib/errors';
-import { type ChatMode } from '@/lib/config';
+import { type ChatModeId } from '@/lib/config';
 
 export default function HomePage() {
   const router = useRouter();
   const [hasStarted, setHasStarted] = useState(false);
-  const [selectedMode, setSelectedMode] = useState<ChatMode>('chat');
+  const [selectedMode, setSelectedMode] = useState<ChatModeId>('chat');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
 
@@ -56,7 +56,7 @@ export default function HomePage() {
   });
 
   // Handle mode selection from hero
-  const handleModeSelect = (mode: ChatMode) => {
+  const handleModeSelect = (mode: ChatModeId) => {
     setSelectedMode(mode);
   };
 
@@ -65,8 +65,8 @@ export default function HomePage() {
     setHasStarted(true);
     
     // Navigate to appropriate page based on mode
-    if (selectedMode === 'voice' || selectedMode === 'conversation') {
-      router.push(`/voice?mode=${selectedMode === 'conversation' ? 'continuous' : 'push-to-talk'}`);
+    if (selectedMode === 'voice' || selectedMode === 'realtime') {
+      router.push(`/voice?mode=${selectedMode === 'realtime' ? 'continuous' : 'push-to-talk'}`);
     }
   }, [selectedMode, router]);
 

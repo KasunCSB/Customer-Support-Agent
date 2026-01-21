@@ -4,9 +4,9 @@
  * Single-shot query without streaming.
  */
 
-import { NextRequest } from 'next/server';
+// No NextRequest type usage to avoid namespace issues
 export const dynamic = 'force-dynamic';
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { query, settings } = body;

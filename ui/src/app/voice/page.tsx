@@ -17,9 +17,9 @@ import { VoiceTranscript } from '@/components/voice/VoiceTranscript';
 import { VoiceControls } from '@/components/voice/VoiceControls';
 import { VoiceErrorBoundary } from '@/components/voice/VoiceErrorBoundary';
 import { v4 as uuidv4 } from 'uuid';
-import { apiClient } from '@/lib/api-client';
 import { getFriendlyError } from '@/lib/errors';
 import type { VoiceTranscript as VoiceTranscriptType, VoiceState } from '@/types/api';
+import { useAuthSession } from '@/hooks/useAuthSession';
 
 // Inner component that contains the actual voice functionality
 function VoicePageContent() {
@@ -28,6 +28,7 @@ function VoicePageContent() {
   const [state, setState] = useState<VoiceState>('idle');
   const [transcripts, setTranscripts] = useState<VoiceTranscriptType[]>([]);
   const [isSupported, setIsSupported] = useState(false);
+  const { token } = useAuthSession();
 
   // Stable server-side conversation context for this voice session
   const chatSessionIdRef = useRef<string>(uuidv4());
@@ -772,10 +773,27 @@ function VoicePageContent() {
       const controller = new AbortController();
       queryAbortRef.current = controller;
 
-      // Query the backend
-      const response = await apiClient.chat(text, chatSessionIdRef.current, {
+      // Query backend chat (non-stream) to allow ACTION execution; include bearer if available
+      const resp = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          message: text,
+          session_id: chatSessionIdRef.current,
+          stream: false,
+        }),
         signal: controller.signal,
       });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail || err.error || `Request failed: ${resp.status}`);
+      }
+
+      const response = await resp.json();
 
       if (stoppedRef.current || (stateRef.current as VoiceState) === 'idle') return;
 
@@ -973,7 +991,7 @@ function VoicePageContent() {
 
   // Determine orb state
   const getOrbState = (): VoiceOrbState => {
-    if (isProcessing) return 'thinking';
+    if (isProcessing) return 'working';
     if (isSpeakingRef.current) return 'speaking';
     return state;
   };

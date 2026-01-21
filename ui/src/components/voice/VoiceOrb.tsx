@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 import { AnimatedOrb, type OrbState } from '@/components/ui/AnimatedOrb';
 import { MicOff } from 'lucide-react';
 
-type VoiceOrbState = 'idle' | 'listening' | 'thinking' | 'speaking';
+type VoiceOrbState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'working';
 
 interface VoiceOrbProps {
   state: VoiceOrbState;
@@ -104,6 +104,7 @@ const VoiceOrb = memo(function VoiceOrb({
           <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
             {state === 'listening' && 'Listening...'}
             {state === 'thinking' && 'Processing...'}
+            {state === 'working' && 'Working...'}
             {state === 'speaking' && 'Speaking...'}
             {state === 'idle' && 'Ready'}
           </span>

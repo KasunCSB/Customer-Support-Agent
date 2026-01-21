@@ -40,7 +40,7 @@ const ChatInput = ({
         // restore focus after sending
         try {
           textareaRef.current.focus();
-        } catch (e) {
+        } catch {
           // ignore
         }
       }

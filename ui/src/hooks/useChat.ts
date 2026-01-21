@@ -111,7 +111,7 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
       };
 
       // Immediately add user message to state for swift UI response
-      setMessages((prev) => [...prev, userMessage]);
+      setMessages((prev: Message[]) => [...prev, userMessage]);
 
       // Create placeholder for assistant message with isStreaming flag
       const assistantMessage: Message = {
@@ -122,7 +122,7 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
         isStreaming: true,
       };
 
-      setMessages((prev) => [...prev, assistantMessage]);
+      setMessages((prev: Message[]) => [...prev, assistantMessage]);
 
       try {
         // Save user message to storage (non-blocking for UI)
@@ -137,12 +137,15 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
         const finalMessage: Message = {
           ...assistantMessage,
           content: response.answer || 'I apologize, but I was unable to generate a response.',
-          sources: response.sources?.length > 0 ? response.sources : undefined,
+          sources:
+            response.sources && response.sources.length > 0
+              ? response.sources.map((s) => ({ source: s.source, relevance: s.relevance || undefined }))
+              : undefined,
           isStreaming: false,
         };
 
-        setMessages((prev) =>
-          prev.map((m) => (m.id === assistantMessage.id ? finalMessage : m))
+        setMessages((prev: Message[]) =>
+          prev.map((m: Message) => (m.id === assistantMessage.id ? finalMessage : m))
         );
 
         // Save assistant message to storage (non-blocking)
@@ -165,7 +168,7 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
           .catch((err) => console.error('Failed to get session for title update:', err));
       } catch (err) {
         // Remove streaming message on error
-        setMessages((prev) => prev.filter((m) => m.id !== assistantMessage.id));
+        setMessages((prev: Message[]) => prev.filter((m: Message) => m.id !== assistantMessage.id));
 
         const error =
           err instanceof APIClientError
@@ -210,8 +213,8 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
       };
 
       // Remove old assistant message and add new streaming one
-      setMessages((prev) => 
-        prev.map((m) => (m.id === messageId ? newAssistantMessage : m))
+      setMessages((prev: Message[]) => 
+        prev.map((m: Message) => (m.id === messageId ? newAssistantMessage : m))
       );
 
       try {
@@ -222,12 +225,15 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
         const finalMessage: Message = {
           ...newAssistantMessage,
           content: response.answer || 'I apologize, but I was unable to generate a response.',
-          sources: response.sources?.length > 0 ? response.sources : undefined,
+          sources:
+            response.sources && response.sources.length > 0
+              ? response.sources.map((s) => ({ source: s.source, relevance: s.relevance || undefined }))
+              : undefined,
           isStreaming: false,
         };
 
-        setMessages((prev) =>
-          prev.map((m) => (m.id === newAssistantMessage.id ? finalMessage : m))
+        setMessages((prev: Message[]) =>
+          prev.map((m: Message) => (m.id === newAssistantMessage.id ? finalMessage : m))
         );
 
         // Save updated assistant message to storage
@@ -238,8 +244,8 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
         }).catch((err) => console.error('Failed to save regenerated message:', err));
       } catch (err) {
         // Restore original message on error
-        setMessages((prev) =>
-          prev.map((m) => (m.id === newAssistantMessage.id ? messages[messageIndex] : m))
+        setMessages((prev: Message[]) =>
+          prev.map((m: Message) => (m.id === newAssistantMessage.id ? messages[messageIndex] : m))
         );
 
         const error =

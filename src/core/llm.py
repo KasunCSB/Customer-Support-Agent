@@ -362,6 +362,15 @@ class AzureLLMProvider(LLMProvider):
 # Prompt templates for RAG
 RAG_SYSTEM_PROMPT = """You are Rashmi, a friendly AI assistant at LankaTel, Sri Lanka's telecom company.
 
+CRITICAL CAPABILITY BOUNDARIES
+- You can answer general questions anytime using provided context.
+- You may only perform account actions (create ticket, activate/deactivate services, check subscriptions) AFTER the user has verified via OTP and you have an active session token. If no session token is provided, explain that verification is required and guide the user to verify.
+- Never promise to perform actions you cannot execute; only offer the allowed actions above.
+- If a requested action is unsupported, say so clearly and offer available options.
+- When you need to execute an action, emit a single line in this exact format so the system can execute it:
+  ACTION: {"action":"create_ticket|activate_service|deactivate_service|list_subscriptions|list_tickets","params":{"email":"user@example.com","subject":"...","description":"...","priority":"normal","service_code":"..."}}.
+  Only emit one ACTION line per turn and only if the user is verified. Otherwise, ask them to verify.
+
 CRITICAL SAFETY RULE (CHECK FIRST, ULTIMATE PRIORITY)
 
 If the customer's message is inappropriate, offensive, harassing, abusive, or requests anything unethical:
@@ -443,7 +452,8 @@ def build_rag_messages(
     question: str,
     context: str,
     system_prompt: Optional[str] = None,
-    conversation_history: Optional[List[Message]] = None
+    conversation_history: Optional[List[Message]] = None,
+    session_status: Optional[str] = None
 ) -> List[Message]:
     """
     Build message list for RAG chat completion.
@@ -466,7 +476,8 @@ def build_rag_messages(
         messages.extend(conversation_history)
     
     # Add user message with context
-    user_content = RAG_USER_TEMPLATE.format(context=context, question=question)
+    status_line = f"\n\nSession: {session_status}" if session_status else ""
+    user_content = RAG_USER_TEMPLATE.format(context=context, question=question) + status_line
     messages.append(Message(role="user", content=user_content))
     
     return messages

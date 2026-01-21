@@ -28,12 +28,27 @@ CREATE TABLE IF NOT EXISTS users (
   phone_normalized VARCHAR(32),
   email VARCHAR(256),
   display_name VARCHAR(256),
+  nic VARCHAR(20) UNIQUE,               -- National Identity Card (Sri Lanka)
+  address TEXT,
   role ENUM('customer','agent','admin') NOT NULL DEFAULT 'customer',
   metadata JSON,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_users_phone_normalized (phone_normalized),
-  INDEX idx_users_external_id (external_id)
+  INDEX idx_users_external_id (external_id),
+  INDEX idx_users_nic (nic)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Staff table to separate staff-specific info from regular users
+CREATE TABLE IF NOT EXISTS staff (
+  id CHAR(36) PRIMARY KEY,
+  user_id CHAR(36) UNIQUE NOT NULL,
+  employee_id VARCHAR(64) UNIQUE,
+  department VARCHAR(128),
+  position VARCHAR(128),
+  metadata JSON,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Connectors (external systems)
@@ -231,17 +246,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   INDEX idx_audit_target (target_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Attachments for tickets
-CREATE TABLE IF NOT EXISTS attachments (
-  id CHAR(36) PRIMARY KEY,
-  ticket_id CHAR(36) NOT NULL,
-  filename VARCHAR(512),
-  content_type VARCHAR(128),
-  storage_ref VARCHAR(1024),
-  metadata JSON,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Attachments table removed: attachments are stored externally (object store) and referenced in ticket metadata if needed.
 
 -- Example: JSON virtual column index (for common JSON lookup)
 -- Adds a generated column for service_code extracted from actions.params

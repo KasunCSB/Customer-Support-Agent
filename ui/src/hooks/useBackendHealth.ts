@@ -43,7 +43,7 @@ export function useBackendHealth({
   const [error, setError] = useState<string | null>(null);
   
   const retriesRef = useRef(0);
-  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const checkHealth = useCallback(async (): Promise<boolean> => {
     try {

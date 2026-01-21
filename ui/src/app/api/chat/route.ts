@@ -4,7 +4,6 @@
  * Handles chat requests with streaming support.
  */
 
-import { NextRequest } from 'next/server';
 import { uiMsg } from '@/lib/ui-messages';
 
 // Don't use edge runtime for SSE streaming - it can cause issues
@@ -12,7 +11,7 @@ import { uiMsg } from '@/lib/ui-messages';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { message, sessionId, settings, stream = true } = body;

@@ -12,6 +12,7 @@ import sys
 import random
 import time
 import re
+import datetime
 from collections import defaultdict
 from typing import AsyncGenerator, Optional, Dict
 from contextlib import asynccontextmanager
@@ -19,7 +20,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from starlette.middleware.base import BaseHTTPMiddleware
 
 # Add project root to path
@@ -29,6 +30,9 @@ from src.config import settings
 from src.pipeline.rag_pipeline import RAGPipeline
 from src.logger import get_logger
 from src.messages import msg
+from src.services.auth import AuthService
+from src.services.actions import ActionService
+from src.services.email_client import EmailClient
 
 logger = get_logger(__name__)
 
@@ -75,8 +79,44 @@ class TestResponse(BaseModel):
     results: list[TestResult]
 
 
-# Global pipeline instance
+# Auth models
+class OtpStartRequest(BaseModel):
+    email: EmailStr
+
+
+class OtpConfirmRequest(BaseModel):
+    email: EmailStr
+    code: str
+
+
+class SessionResponse(BaseModel):
+    token: str
+    expires_at: datetime.datetime
+    user: dict
+
+
+# Action models
+class CreateTicketRequest(BaseModel):
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    subject: str
+    description: str
+    priority: str = Field(default="normal", pattern="^(low|normal|high|urgent)$")
+    idempotency_key: Optional[str] = None
+
+
+class ServiceChangeRequest(BaseModel):
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    service_code: str
+    idempotency_key: Optional[str] = None
+
+
+# Global pipeline instance and services
 pipeline: Optional[RAGPipeline] = None
+auth_service = AuthService()
+action_service = ActionService()
+email_client = EmailClient()
 
 
 @asynccontextmanager
@@ -223,17 +263,38 @@ async def query(request: QueryRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _parse_action_line(text: str) -> Optional[dict]:
+    """Parse an ACTION line emitted by the LLM."""
+    for line in text.splitlines():
+        if line.strip().startswith("ACTION:"):
+            payload = line.split("ACTION:", 1)[1].strip()
+            try:
+                data = json.loads(payload)
+                if isinstance(data, dict) and "action" in data and "params" in data:
+                    return data
+            except json.JSONDecodeError:
+                continue
+    return None
+
+
 @app.post("/api/chat")
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, http_request: Request):
     """Chat with conversation context, optionally streaming."""
     try:
         pipe = get_pipeline()
+        # Optional bearer session
+        session = None
+        auth_header = http_request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header.split(" ", 1)[1].strip()
+            session = auth_service.validate_session(token)
         
         if request.stream:
             # Streaming response using proper async pattern
             async def generate() -> AsyncGenerator[str, None]:
                 async_queue: asyncio.Queue[Optional[str]] = asyncio.Queue()
                 error_holder: list[Exception] = []
+                session_status = "verified" if session else "unverified"
                 
                 async def stream_producer():
                     """Run the sync stream_query in a thread and push tokens to async queue."""
@@ -245,6 +306,7 @@ async def chat(request: ChatRequest):
                                 request.message,
                                 include_history=True,
                                 session_id=request.session_id,
+                                session_status=session_status,
                             ):
                                 tokens.append(token)
                             return tokens
@@ -313,14 +375,69 @@ async def chat(request: ChatRequest):
             )
         else:
             # Non-streaming response
+            session_status = "verified" if session else "unverified"
             result = await asyncio.to_thread(
                 pipe.chat,
                 request.message,
                 None,
                 request.session_id,
+                session_status,
             )
+            # Attempt action parsing (only non-streaming)
+            action_data = _parse_action_line(result.answer)
+            action_result = None
+            if action_data:
+                if not session:
+                    action_result = {"error": "Verification required before performing actions."}
+                else:
+                    action_name = action_data.get("action")
+                    params = action_data.get("params", {})
+                    try:
+                        if action_name == "create_ticket":
+                            action_result = action_service.create_ticket(
+                                actor_id=session["user_id"],
+                                actor_role=session["role"],
+                                user_email=params.get("email"),
+                                user_phone=params.get("phone"),
+                                subject=params.get("subject", "Support request"),
+                                description=params.get("description", ""),
+                                priority=params.get("priority", "normal"),
+                                idempotency_key=params.get("idempotency_key"),
+                            )
+                        elif action_name == "activate_service":
+                            action_result = action_service.activate_service(
+                                actor_id=session["user_id"],
+                                actor_role=session["role"],
+                                user_email=params.get("email"),
+                                user_phone=params.get("phone"),
+                                service_code=params.get("service_code"),
+                                idempotency_key=params.get("idempotency_key"),
+                            )
+                        elif action_name == "deactivate_service":
+                            action_result = action_service.deactivate_service(
+                                actor_id=session["user_id"],
+                                actor_role=session["role"],
+                                user_email=params.get("email"),
+                                user_phone=params.get("phone"),
+                                service_code=params.get("service_code"),
+                                idempotency_key=params.get("idempotency_key"),
+                            )
+                        elif action_name == "list_subscriptions":
+                            action_result = action_service.list_subscriptions(
+                                user_email=params.get("email"),
+                                user_phone=params.get("phone"),
+                            )
+                        elif action_name == "list_tickets":
+                            action_result = action_service.list_tickets(
+                                user_email=params.get("email"),
+                                user_phone=params.get("phone"),
+                            )
+                        else:
+                            action_result = {"error": f"Unsupported action: {action_name}"}
+                    except Exception as e:
+                        action_result = {"error": str(e)}
             
-            return {
+            response_payload = {
                 "answer": result.answer,
                 "sources": [
                     {
@@ -331,6 +448,11 @@ async def chat(request: ChatRequest):
                 ],
                 "session_id": request.session_id,
             }
+            if action_data:
+                response_payload["action"] = action_data
+                response_payload["action_result"] = action_result
+            
+            return response_payload
     except Exception as e:
         logger.error(f"Chat error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -453,6 +575,135 @@ async def run_tests():
         ))
     
     return TestResponse(results=results)
+
+
+@app.post("/api/auth/otp/start")
+async def start_otp(request: OtpStartRequest):
+    """Start email OTP verification."""
+    try:
+        result = auth_service.start_email_otp(request.email)
+
+        # Send email (or log if email is disabled)
+        email_client.send(
+            to_email=request.email,
+            subject="Your verification code",
+            body=f"Your verification code is {result['code']}. It expires in {auth_service.OTP_EXPIRY_MINUTES} minutes.",
+        )
+
+        return {"success": True, "expires_at": result["expires_at"].isoformat()}
+    except Exception as e:
+        logger.error(f"OTP start error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/auth/otp/confirm", response_model=SessionResponse)
+async def confirm_otp(request: OtpConfirmRequest):
+    """Confirm OTP and return a session token."""
+    try:
+        result = auth_service.confirm_email_otp(request.email, request.code)
+        return {
+            "token": result["session_token"],
+            "expires_at": result["session_expires_at"],
+            "user": result["user"],
+        }
+    except Exception as e:
+        logger.error(f"OTP confirm error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+def _require_session(request: Request) -> dict:
+    """Extract and validate bearer token."""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = auth_header.split(" ", 1)[1].strip()
+    session = auth_service.validate_session(token)
+    if not session:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+    return session
+
+
+@app.post("/api/actions/create_ticket")
+async def create_ticket(request: CreateTicketRequest, http_request: Request):
+    """Create a support ticket for a verified user."""
+    session = _require_session(http_request)
+    try:
+        result = action_service.create_ticket(
+            actor_id=session["user_id"],
+            actor_role=session["role"],
+            user_email=request.email,
+            user_phone=request.phone,
+            subject=request.subject,
+            description=request.description,
+            priority=request.priority,
+            idempotency_key=request.idempotency_key,
+        )
+        return {"success": True, **result}
+    except Exception as e:
+        logger.error(f"Create ticket error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/actions/activate_service")
+async def activate_service(request: ServiceChangeRequest, http_request: Request):
+    """Activate a service for a user."""
+    session = _require_session(http_request)
+    try:
+        result = action_service.activate_service(
+            actor_id=session["user_id"],
+            actor_role=session["role"],
+            user_email=request.email,
+            user_phone=request.phone,
+            service_code=request.service_code,
+            idempotency_key=request.idempotency_key,
+        )
+        return {"success": True, **result}
+    except Exception as e:
+        logger.error(f"Activate service error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/actions/deactivate_service")
+async def deactivate_service(request: ServiceChangeRequest, http_request: Request):
+    """Deactivate a service for a user."""
+    session = _require_session(http_request)
+    try:
+        result = action_service.deactivate_service(
+            actor_id=session["user_id"],
+            actor_role=session["role"],
+            user_email=request.email,
+            user_phone=request.phone,
+            service_code=request.service_code,
+            idempotency_key=request.idempotency_key,
+        )
+        return {"success": True, **result}
+    except Exception as e:
+        logger.error(f"Deactivate service error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/actions/subscriptions")
+async def list_subscriptions(http_request: Request, email: Optional[EmailStr] = None, phone: Optional[str] = None):
+    """List subscriptions for a verified user."""
+    session = _require_session(http_request)
+    try:
+        items = action_service.list_subscriptions(user_email=email, user_phone=phone)
+        return {"subscriptions": items}
+    except Exception as e:
+        logger.error(f"List subscriptions error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/actions/tickets")
+async def list_tickets(http_request: Request, email: Optional[EmailStr] = None, phone: Optional[str] = None):
+    """List tickets for a verified user."""
+    session = _require_session(http_request)
+    try:
+        items = action_service.list_tickets(user_email=email, user_phone=phone)
+        return {"tickets": items}
+    except Exception as e:
+        logger.error(f"List tickets error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
 @app.post("/api/memory/clear")
 async def clear_memory():
     """Clear conversation memory."""

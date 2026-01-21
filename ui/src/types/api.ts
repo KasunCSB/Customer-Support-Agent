@@ -256,7 +256,7 @@ export type IngestResult = z.infer<typeof IngestResultSchema>;
 /**
  * Voice state enum
  */
-export const VoiceStateSchema = z.enum(['idle', 'listening', 'thinking', 'speaking']);
+export const VoiceStateSchema = z.enum(['idle', 'listening', 'thinking', 'speaking', 'working']);
 export type VoiceState = z.infer<typeof VoiceStateSchema>;
 
 /**

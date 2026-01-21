@@ -11,11 +11,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { AnimatedOrb } from '@/components/ui/AnimatedOrb';
 import { ModeSwitcher } from '@/components/ui/ModeSwitcher';
-import { APP_CONFIG, type ChatMode } from '@/lib/config';
+import { APP_CONFIG, type ChatModeId } from '@/lib/config';
 import { apiClient } from '@/lib/api-client';
 
 interface HeroSectionProps {
-  onModeSelect: (mode: ChatMode) => void;
+  onModeSelect: (mode: ChatModeId) => void;
   onStart: () => void;
   className?: string;
 }
@@ -49,7 +49,7 @@ function normalizeWelcomeText(input: string): string {
 const HeroSection = ({ onModeSelect, onStart, className }: HeroSectionProps) => {
   const [welcomeText, setWelcomeText] = useState('');
   const [isLoadingWelcome, setIsLoadingWelcome] = useState(true);
-  const [selectedMode, setSelectedMode] = useState<ChatMode>('chat');
+  const [selectedMode, setSelectedMode] = useState<ChatModeId>('chat');
 
   // Fetch welcome message from backend
   const fetchWelcomeMessage = useCallback(async () => {
@@ -70,7 +70,7 @@ const HeroSection = ({ onModeSelect, onStart, className }: HeroSectionProps) => 
     fetchWelcomeMessage();
   }, [fetchWelcomeMessage]);
 
-  const handleModeSelect = (mode: ChatMode) => {
+  const handleModeSelect = (mode: ChatModeId) => {
     setSelectedMode(mode);
     onModeSelect(mode);
   };

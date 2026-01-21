@@ -30,6 +30,25 @@ const ChatMessagesList = ({
   const bottomRef = useRef<HTMLDivElement>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [workingText, setWorkingText] = useState('Working on it...');
+
+  useEffect(() => {
+    if (!isLoading) return;
+    const phrases = [
+      'Working on it...',
+      'On it...',
+      'Almost there...',
+      'Fetching details...',
+      'Crunching...',
+    ];
+    let idx = 0;
+    setWorkingText(phrases[idx]);
+    const interval = setInterval(() => {
+      idx = (idx + 1) % phrases.length;
+      setWorkingText(phrases[idx]);
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [isLoading]);
 
   // Check if scrolled to bottom
   const checkScrollPosition = useCallback(() => {
@@ -141,6 +160,17 @@ const ChatMessagesList = ({
             <ArrowDown className="w-4 h-4" />
             New messages
           </button>
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 animate-fade-in">
+          <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-white/80 dark:bg-neutral-800/80 backdrop-blur-xl border border-white/30 dark:border-white/10 shadow-lg">
+            <div className="h-3 w-3 rounded-full bg-primary-500 animate-pulse" />
+            <span className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
+              {workingText}
+            </span>
+          </div>
         </div>
       )}
     </div>

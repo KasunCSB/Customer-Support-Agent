@@ -242,6 +242,33 @@ class SpeechConfig:
 
 
 @dataclass
+class DatabaseConfig:
+    """
+    Database configuration (MySQL via SQLAlchemy URL).
+    """
+    url: str = field(default_factory=lambda: get_env("DB_URL", "mysql+pymysql://user:password@localhost/ltagent"))
+
+
+@dataclass
+class EmailConfig:
+    """
+    Outbound email configuration for OTP/notifications.
+    """
+    smtp_host: str = field(default_factory=lambda: get_env("EMAIL_SMTP_HOST", ""))
+    smtp_port: int = field(default_factory=lambda: get_env_int("EMAIL_SMTP_PORT", 587))
+    smtp_username: str = field(default_factory=lambda: get_env("EMAIL_SMTP_USERNAME", ""))
+    smtp_password: str = field(default_factory=lambda: get_env("EMAIL_SMTP_PASSWORD", ""))
+    sender: str = field(default_factory=lambda: get_env("EMAIL_SENDER", "no-reply@kasunc.uk"))
+    use_tls: bool = field(default_factory=lambda: get_env_bool("EMAIL_USE_TLS", True))
+    enabled: bool = field(default_factory=lambda: get_env_bool("EMAIL_ENABLED", False))
+
+    @property
+    def is_configured(self) -> bool:
+        """Check if email sending is configured."""
+        return self.enabled and bool(self.smtp_host and self.smtp_username and self.smtp_password)
+
+
+@dataclass
 class RealtimeConfig:
     """
     Real-time voice agent configuration.
@@ -291,6 +318,8 @@ class Settings:
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     speech: SpeechConfig = field(default_factory=SpeechConfig)
     realtime: RealtimeConfig = field(default_factory=RealtimeConfig)
+    database: DatabaseConfig = field(default_factory=DatabaseConfig)
+    email: EmailConfig = field(default_factory=EmailConfig)
     
     # Application-level settings
     app_env: str = field(default_factory=lambda: get_env("APP_ENV", "development"))

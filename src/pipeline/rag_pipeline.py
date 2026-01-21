@@ -231,7 +231,8 @@ class RAGPipeline:
         top_k: Optional[int] = None,
         include_history: bool = False,
         filter_metadata: Optional[Dict[str, Any]] = None,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
+        session_status: Optional[str] = None
     ) -> RAGResponse:
         """
         Process a question through the RAG pipeline.
@@ -270,7 +271,8 @@ class RAGPipeline:
             question=question,
             context=context,
             system_prompt=self.system_prompt,
-            conversation_history=history
+            conversation_history=history,
+            session_status=session_status,
         )
         
         # Step 4: Generate response
@@ -302,7 +304,8 @@ class RAGPipeline:
         self,
         message: str,
         top_k: Optional[int] = None,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
+        session_status: Optional[str] = None
     ) -> RAGResponse:
         """
         Send a message in conversational mode.
@@ -316,7 +319,7 @@ class RAGPipeline:
         Returns:
             RAGResponse with answer
         """
-        return self.query(message, top_k=top_k, include_history=True, session_id=session_id)
+        return self.query(message, top_k=top_k, include_history=True, session_id=session_id, session_status=session_status)
     
     def stream_query(
         self,
@@ -324,7 +327,8 @@ class RAGPipeline:
         top_k: Optional[int] = None,
         filter_metadata: Optional[Dict[str, Any]] = None,
         include_history: bool = True,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
+        session_status: Optional[str] = None
     ) -> Iterator[str]:
         """
         Stream a response token by token.
@@ -362,7 +366,8 @@ class RAGPipeline:
             question=question,
             context=context,
             system_prompt=self.system_prompt,
-            conversation_history=history
+            conversation_history=history,
+            session_status=session_status,
         )
         
         # Stream response
