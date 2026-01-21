@@ -13,6 +13,8 @@ import random
 import time
 import re
 import datetime
+import hmac
+import hashlib
 from collections import defaultdict
 from typing import AsyncGenerator, Optional, Dict
 from contextlib import asynccontextmanager
@@ -33,6 +35,7 @@ from src.messages import msg
 from src.services.auth import AuthService
 from src.services.actions import ActionService
 from src.services.email_client import EmailClient
+from src.db import db
 
 logger = get_logger(__name__)
 
@@ -89,10 +92,29 @@ class OtpConfirmRequest(BaseModel):
     code: str
 
 
+class PhoneOtpStartRequest(BaseModel):
+    phone: str
+
+
+class PhoneOtpConfirmRequest(BaseModel):
+    phone: str
+    code: str
+
+
 class SessionResponse(BaseModel):
     token: str
     expires_at: datetime.datetime
     user: dict
+
+
+# Admin auth models
+class AdminLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class AdminUpdateRequest(BaseModel):
+    data: dict
 
 
 # Action models
@@ -118,6 +140,44 @@ auth_service = AuthService()
 action_service = ActionService()
 email_client = EmailClient()
 
+# Admin table config (allowed columns for updates)
+ADMIN_TABLES = {
+    "users": {"display_name", "role", "status", "preferred_channel", "metadata", "external_id", "phone_e164", "email"},
+    "services": {"name", "description", "category", "price", "currency", "validity_days", "metadata", "code"},
+    "subscriptions": {"status", "activated_at", "expires_at", "external_ref", "metadata"},
+    "tickets": {"subject", "description", "priority", "status", "assigned_to", "metadata", "closed_at"},
+    "actions": {"status", "requires_confirmation", "params", "result", "error"},
+}
+
+# Admin session helpers
+def _admin_sign(payload: str) -> str:
+    secret = settings.admin.secret.encode("utf-8")
+    return hmac.new(secret, payload.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def create_admin_token(username: str) -> str:
+    expiry = datetime.datetime.utcnow() + datetime.timedelta(hours=settings.admin.cookie_ttl_hours)
+    payload = f"{username}:{int(expiry.timestamp())}"
+    signature = _admin_sign(payload)
+    return f"{payload}.{signature}"
+
+
+def verify_admin_token(token: str) -> Optional[str]:
+    try:
+        payload, signature = token.rsplit(".", 1)
+    except ValueError:
+        return None
+    expected = _admin_sign(payload)
+    if not hmac.compare_digest(signature, expected):
+        return None
+    try:
+        username, exp_ts = payload.split(":", 1)
+        if int(exp_ts) < int(time.time()):
+            return None
+        return username
+    except Exception:
+        return None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -133,6 +193,67 @@ async def lifespan(app: FastAPI):
     
     # Cleanup on shutdown
     pipeline = None
+
+
+def _is_admin_request(request: Request) -> bool:
+    token = request.cookies.get(settings.admin.cookie_name)
+    if not token:
+        return False
+    username = verify_admin_token(token)
+    return bool(username and username == settings.admin.username)
+
+
+def require_admin(request: Request):
+    if not _is_admin_request(request):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return True
+
+
+def _fetch_table(name: str, limit: int = 50, offset: int = 0):
+    if name not in ADMIN_TABLES and name not in {
+        "sessions",
+        "verifications",
+        "ticket_events",
+        "action_events",
+        "audit_logs",
+    }:
+        raise HTTPException(status_code=404, detail="Unknown table")
+    if limit > 200:
+        limit = 200
+    sql = f"SELECT * FROM {name} ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
+    return db.fetch_all(sql, {"limit": limit, "offset": offset})
+
+
+def _update_table(name: str, row_id: str, data: dict):
+    if name not in ADMIN_TABLES:
+        raise HTTPException(status_code=400, detail="Updates not allowed for this table")
+    allowed = ADMIN_TABLES[name]
+    fields = {k: v for k, v in data.items() if k in allowed}
+    if not fields:
+        raise HTTPException(status_code=400, detail="No allowed fields to update")
+    set_clause = ", ".join(f"{col} = :{col}" for col in fields.keys())
+    params = fields
+    params["id"] = row_id
+    sql = f"UPDATE {name} SET {set_clause} WHERE id = :id"
+    db.execute(sql, params)
+    return db.fetch_one(f"SELECT * FROM {name} WHERE id = :id", {"id": row_id})
+
+
+def _admin_counts():
+    counts = {}
+    for tbl in [
+        "users",
+        "services",
+        "subscriptions",
+        "tickets",
+        "actions",
+        "sessions",
+        "verifications",
+        "audit_logs",
+    ]:
+        res = db.fetch_one(f"SELECT COUNT(*) as c FROM {tbl}")
+        counts[tbl] = res["c"] if res else 0
+    return counts
 
 
 # Rate limiting middleware
@@ -193,6 +314,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Combine UI and admin CORS origins
+_cors_origins = list(dict.fromkeys(settings.cors_origins + settings.admin.allowed_origins))
+
 # Rate limiting middleware
 app.add_middleware(
     RateLimitMiddleware,
@@ -203,7 +327,7 @@ app.add_middleware(
 # CORS middleware - uses configurable origins from settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -277,6 +401,34 @@ def _parse_action_line(text: str) -> Optional[dict]:
     return None
 
 
+_AGENTIC_PATTERNS = [
+    re.compile(r"\b(balance|check balance|account balance)\b", re.IGNORECASE),
+    re.compile(r"\b(create|open|raise|file)\b.*\bticket\b", re.IGNORECASE),
+    re.compile(r"\b(activate|enable|start|subscribe)\b.*\b(service|plan|package|subscription)\b", re.IGNORECASE),
+    re.compile(r"\b(deactivate|disable|stop|cancel)\b.*\b(service|plan|package|subscription)\b", re.IGNORECASE),
+    re.compile(r"\b(list|show|view)\b.*\b(subscriptions?|tickets?)\b", re.IGNORECASE),
+    re.compile(r"\b(check|track)\b.*\b(ticket|subscription)\b", re.IGNORECASE),
+]
+
+
+def _detect_agentic_intent(text: str) -> bool:
+    if not text:
+        return False
+    return any(pattern.search(text) for pattern in _AGENTIC_PATTERNS)
+
+
+_PHONE_RE = re.compile(r"^\+?\d{9,15}$")
+
+
+def _normalize_phone(phone: str) -> str:
+    cleaned = re.sub(r"[\s\-()]", "", phone)
+    if not _PHONE_RE.match(cleaned):
+        raise ValueError("Invalid phone number format")
+    if not cleaned.startswith("+"):
+        cleaned = f"+{cleaned}"
+    return cleaned
+
+
 @app.post("/api/chat")
 async def chat(request: ChatRequest, http_request: Request):
     """Chat with conversation context, optionally streaming."""
@@ -288,6 +440,7 @@ async def chat(request: ChatRequest, http_request: Request):
         if auth_header.startswith("Bearer "):
             token = auth_header.split(" ", 1)[1].strip()
             session = auth_service.validate_session(token)
+        needs_verification = (session is None) and _detect_agentic_intent(request.message)
         
         if request.stream:
             # Streaming response using proper async pattern
@@ -393,12 +546,14 @@ async def chat(request: ChatRequest, http_request: Request):
                     action_name = action_data.get("action")
                     params = action_data.get("params", {})
                     try:
+                        user_email = params.get("email") or session.get("email")
+                        user_phone = params.get("phone") or session.get("phone_e164")
                         if action_name == "create_ticket":
                             action_result = action_service.create_ticket(
                                 actor_id=session["user_id"],
                                 actor_role=session["role"],
-                                user_email=params.get("email"),
-                                user_phone=params.get("phone"),
+                                user_email=user_email,
+                                user_phone=user_phone,
                                 subject=params.get("subject", "Support request"),
                                 description=params.get("description", ""),
                                 priority=params.get("priority", "normal"),
@@ -408,8 +563,8 @@ async def chat(request: ChatRequest, http_request: Request):
                             action_result = action_service.activate_service(
                                 actor_id=session["user_id"],
                                 actor_role=session["role"],
-                                user_email=params.get("email"),
-                                user_phone=params.get("phone"),
+                                user_email=user_email,
+                                user_phone=user_phone,
                                 service_code=params.get("service_code"),
                                 idempotency_key=params.get("idempotency_key"),
                             )
@@ -417,20 +572,24 @@ async def chat(request: ChatRequest, http_request: Request):
                             action_result = action_service.deactivate_service(
                                 actor_id=session["user_id"],
                                 actor_role=session["role"],
-                                user_email=params.get("email"),
-                                user_phone=params.get("phone"),
+                                user_email=user_email,
+                                user_phone=user_phone,
                                 service_code=params.get("service_code"),
                                 idempotency_key=params.get("idempotency_key"),
                             )
                         elif action_name == "list_subscriptions":
                             action_result = action_service.list_subscriptions(
-                                user_email=params.get("email"),
-                                user_phone=params.get("phone"),
+                                user_email=user_email,
+                                user_phone=user_phone,
                             )
                         elif action_name == "list_tickets":
                             action_result = action_service.list_tickets(
-                                user_email=params.get("email"),
-                                user_phone=params.get("phone"),
+                                user_email=user_email,
+                                user_phone=user_phone,
+                            )
+                        elif action_name == "check_balance":
+                            action_result = action_service.get_balance(
+                                user_id=session["user_id"]
                             )
                         else:
                             action_result = {"error": f"Unsupported action: {action_name}"}
@@ -447,6 +606,8 @@ async def chat(request: ChatRequest, http_request: Request):
                     for s in result.sources
                 ],
                 "session_id": request.session_id,
+                "needs_verification": needs_verification,
+                "agentic": bool(action_data) or needs_verification,
             }
             if action_data:
                 response_payload["action"] = action_data
@@ -596,6 +757,28 @@ async def start_otp(request: OtpStartRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.post("/api/auth/otp/phone/start")
+async def start_phone_otp(request: PhoneOtpStartRequest):
+    """Start OTP verification using a mobile number (OTP delivered via email)."""
+    try:
+        phone = _normalize_phone(request.phone)
+        result = auth_service.start_phone_otp(phone)
+
+        email_client.send(
+            to_email=result["destination"],
+            subject="Your verification code",
+            body=(
+                f"Your verification code is {result['code']}. "
+                f"It expires in {auth_service.OTP_EXPIRY_MINUTES} minutes."
+            ),
+        )
+
+        return {"success": True, "expires_at": result["expires_at"].isoformat()}
+    except Exception as e:
+        logger.error(f"Phone OTP start error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.post("/api/auth/otp/confirm", response_model=SessionResponse)
 async def confirm_otp(request: OtpConfirmRequest):
     """Confirm OTP and return a session token."""
@@ -609,6 +792,74 @@ async def confirm_otp(request: OtpConfirmRequest):
     except Exception as e:
         logger.error(f"OTP confirm error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/auth/otp/phone/confirm", response_model=SessionResponse)
+async def confirm_phone_otp(request: PhoneOtpConfirmRequest):
+    """Confirm phone OTP and return a session token."""
+    try:
+        phone = _normalize_phone(request.phone)
+        result = auth_service.confirm_phone_otp(phone, request.code)
+        return {
+            "token": result["session_token"],
+            "expires_at": result["session_expires_at"],
+            "user": result["user"],
+        }
+    except Exception as e:
+        logger.error(f"Phone OTP confirm error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ----------------------------- Admin API ------------------------------------
+@app.post("/api/admin/login")
+async def admin_login(payload: AdminLoginRequest):
+    if payload.username != settings.admin.username or payload.password != settings.admin.password:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    token = create_admin_token(payload.username)
+    resp = JSONResponse(
+        {"ok": True, "expires_at": int(time.time() + settings.admin.cookie_ttl_hours * 3600)}
+    )
+    resp.set_cookie(
+        key=settings.admin.cookie_name,
+        value=token,
+        httponly=True,
+        secure=not settings.is_development,
+        samesite="lax",
+        max_age=settings.admin.cookie_ttl_hours * 3600,
+    )
+    return resp
+
+
+@app.post("/api/admin/logout")
+async def admin_logout():
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(settings.admin.cookie_name)
+    return resp
+
+
+@app.get("/api/admin/stats")
+async def admin_stats(request: Request):
+    require_admin(request)
+    return {
+        "counts": _admin_counts(),
+        "latest_tickets": _fetch_table("tickets", limit=5, offset=0),
+        "latest_actions": _fetch_table("actions", limit=5, offset=0),
+        "latest_audit_logs": _fetch_table("audit_logs", limit=5, offset=0),
+    }
+
+
+@app.get("/api/admin/table/{name}")
+async def admin_table(name: str, request: Request, limit: int = 50, offset: int = 0):
+    require_admin(request)
+    return {"rows": _fetch_table(name, limit=limit, offset=offset)}
+
+
+@app.put("/api/admin/table/{name}/{row_id}")
+async def admin_update(name: str, row_id: str, payload: AdminUpdateRequest, request: Request):
+    require_admin(request)
+    updated = _update_table(name, row_id, payload.data)
+    return {"row": updated}
+
 
 
 def _require_session(request: Request) -> dict:
@@ -628,11 +879,13 @@ async def create_ticket(request: CreateTicketRequest, http_request: Request):
     """Create a support ticket for a verified user."""
     session = _require_session(http_request)
     try:
+        user_email = request.email or session.get("email")
+        user_phone = request.phone or session.get("phone_e164")
         result = action_service.create_ticket(
             actor_id=session["user_id"],
             actor_role=session["role"],
-            user_email=request.email,
-            user_phone=request.phone,
+            user_email=user_email,
+            user_phone=user_phone,
             subject=request.subject,
             description=request.description,
             priority=request.priority,
@@ -649,11 +902,13 @@ async def activate_service(request: ServiceChangeRequest, http_request: Request)
     """Activate a service for a user."""
     session = _require_session(http_request)
     try:
+        user_email = request.email or session.get("email")
+        user_phone = request.phone or session.get("phone_e164")
         result = action_service.activate_service(
             actor_id=session["user_id"],
             actor_role=session["role"],
-            user_email=request.email,
-            user_phone=request.phone,
+            user_email=user_email,
+            user_phone=user_phone,
             service_code=request.service_code,
             idempotency_key=request.idempotency_key,
         )
@@ -668,11 +923,13 @@ async def deactivate_service(request: ServiceChangeRequest, http_request: Reques
     """Deactivate a service for a user."""
     session = _require_session(http_request)
     try:
+        user_email = request.email or session.get("email")
+        user_phone = request.phone or session.get("phone_e164")
         result = action_service.deactivate_service(
             actor_id=session["user_id"],
             actor_role=session["role"],
-            user_email=request.email,
-            user_phone=request.phone,
+            user_email=user_email,
+            user_phone=user_phone,
             service_code=request.service_code,
             idempotency_key=request.idempotency_key,
         )
@@ -687,7 +944,9 @@ async def list_subscriptions(http_request: Request, email: Optional[EmailStr] = 
     """List subscriptions for a verified user."""
     session = _require_session(http_request)
     try:
-        items = action_service.list_subscriptions(user_email=email, user_phone=phone)
+        user_email = email or session.get("email")
+        user_phone = phone or session.get("phone_e164")
+        items = action_service.list_subscriptions(user_email=user_email, user_phone=user_phone)
         return {"subscriptions": items}
     except Exception as e:
         logger.error(f"List subscriptions error: {e}")
@@ -699,10 +958,73 @@ async def list_tickets(http_request: Request, email: Optional[EmailStr] = None, 
     """List tickets for a verified user."""
     session = _require_session(http_request)
     try:
-        items = action_service.list_tickets(user_email=email, user_phone=phone)
+        user_email = email or session.get("email")
+        user_phone = phone or session.get("phone_e164")
+        items = action_service.list_tickets(user_email=user_email, user_phone=user_phone)
         return {"tickets": items}
     except Exception as e:
         logger.error(f"List tickets error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/actions/balance")
+async def get_balance(http_request: Request):
+    """Get account balance for a verified user."""
+    session = _require_session(http_request)
+    try:
+        result = action_service.get_balance(user_id=session["user_id"])
+        return {"success": True, **result}
+    except Exception as e:
+        logger.error(f"Balance error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/agentic/quick-actions")
+async def agentic_quick_actions(http_request: Request):
+    """Return quick actions tailored to the verified user."""
+    session = _require_session(http_request)
+    try:
+        active_subs = action_service.list_active_subscriptions_by_user_id(
+            user_id=session["user_id"]
+        )
+        available_services = action_service.list_available_services_by_user_id(
+            user_id=session["user_id"],
+            limit=6,
+        )
+
+        quick_actions = [
+            {"id": "check_balance", "label": "Check balance", "message": "Check my balance."},
+            {"id": "list_subscriptions", "label": "View subscriptions", "message": "List my subscriptions."},
+            {"id": "list_tickets", "label": "View tickets", "message": "Show my tickets."},
+        ]
+
+        for service in available_services:
+            quick_actions.append({
+                "id": f"activate_{service['code']}",
+                "label": f"Activate {service['name']}",
+                "message": f"Please activate {service['code']} for my account.",
+            })
+
+        for sub in active_subs:
+            quick_actions.append({
+                "id": f"deactivate_{sub['code']}",
+                "label": f"Deactivate {sub['name']}",
+                "message": f"Please deactivate {sub['code']} for my account.",
+            })
+
+        return {
+            "user": {
+                "id": session.get("user_id"),
+                "display_name": session.get("display_name"),
+                "email": session.get("email"),
+                "phone_e164": session.get("phone_e164"),
+            },
+            "quick_actions": quick_actions,
+            "active_subscriptions": active_subs,
+            "available_services": available_services,
+        }
+    except Exception as e:
+        logger.error(f"Quick actions error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 @app.post("/api/memory/clear")
 async def clear_memory():

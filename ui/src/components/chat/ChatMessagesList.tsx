@@ -16,6 +16,7 @@ import type { Message } from '@/types/api';
 interface ChatMessagesListProps {
   messages: Message[];
   isLoading?: boolean;
+  showWorking?: boolean;
   onRegenerate?: (messageId: string) => void;
   className?: string;
 }
@@ -23,6 +24,7 @@ interface ChatMessagesListProps {
 const ChatMessagesList = ({
   messages,
   isLoading = false,
+  showWorking = false,
   onRegenerate,
   className,
 }: ChatMessagesListProps) => {
@@ -31,9 +33,28 @@ const ChatMessagesList = ({
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [workingText, setWorkingText] = useState('Working on it...');
+  const [isWorkingVisible, setIsWorkingVisible] = useState(false);
+
+  const hasStreamingAssistant = messages.some(
+    (m) => m.role === 'assistant' && m.isStreaming
+  );
+
+  // Only show the working bar after we've been waiting for a bit,
+  // which aligns with slower agentic/DB/API operations.
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
+    if (isLoading && showWorking && hasStreamingAssistant) {
+      timer = setTimeout(() => setIsWorkingVisible(true), 1200);
+    } else {
+      setIsWorkingVisible(false);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isLoading, showWorking, hasStreamingAssistant]);
 
   useEffect(() => {
-    if (!isLoading) return;
+    if (!isWorkingVisible) return;
     const phrases = [
       'Working on it...',
       'On it...',
@@ -48,7 +69,7 @@ const ChatMessagesList = ({
       setWorkingText(phrases[idx]);
     }, 1500);
     return () => clearInterval(interval);
-  }, [isLoading]);
+  }, [isWorkingVisible]);
 
   // Check if scrolled to bottom
   const checkScrollPosition = useCallback(() => {
@@ -163,7 +184,7 @@ const ChatMessagesList = ({
         </div>
       )}
 
-      {isLoading && (
+      {isWorkingVisible && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 animate-fade-in">
           <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-white/80 dark:bg-neutral-800/80 backdrop-blur-xl border border-white/30 dark:border-white/10 shadow-lg">
             <div className="h-3 w-3 rounded-full bg-primary-500 animate-pulse" />

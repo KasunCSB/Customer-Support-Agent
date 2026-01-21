@@ -14,7 +14,7 @@ from typing import Optional, Dict, Any, Callable
 
 from src.config import settings
 from src.logger import get_logger
-from src.core.llm import RAG_SYSTEM_PROMPT
+from src.core.llm import VOICE_RAG_SYSTEM_PROMPT
 
 from .conversation_controller import ConversationController, ControllerConfig, ConversationState
 
@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 class VoiceAgentConfig:
     """Configuration for voice agent."""
     # System prompt
-    system_prompt: str = RAG_SYSTEM_PROMPT
+    system_prompt: str = VOICE_RAG_SYSTEM_PROMPT
 
     # Greeting
     auto_greet: bool = True
@@ -189,7 +189,7 @@ async def run_voice_agent(
         enable_barge_in: Allow user to interrupt
     """
     config = VoiceAgentConfig(
-        system_prompt=system_prompt or RAG_SYSTEM_PROMPT,
+        system_prompt=system_prompt or VOICE_RAG_SYSTEM_PROMPT,
         greeting=greeting or VoiceAgentConfig.greeting,
         enable_barge_in=enable_barge_in,
     )

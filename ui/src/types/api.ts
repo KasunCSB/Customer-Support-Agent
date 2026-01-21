@@ -81,6 +81,8 @@ export type QueryRequest = z.infer<typeof QueryRequestSchema>;
 export const QueryResponseSchema = z.object({
   answer: z.string(),
   query: z.string().optional().nullable(),
+  agentic: z.boolean().optional(),
+  needs_verification: z.boolean().optional(),
   sources: z.array(
     z.object({
       source: z.string(),
@@ -99,6 +101,45 @@ export const QueryResponseSchema = z.object({
   timestamp: z.string().datetime().optional().nullable(),
 });
 export type QueryResponse = z.infer<typeof QueryResponseSchema>;
+
+export const QuickActionSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  message: z.string(),
+});
+export type QuickAction = z.infer<typeof QuickActionSchema>;
+
+export const AgenticContextSchema = z.object({
+  user: z.object({
+    id: z.string().optional(),
+    display_name: z.string().optional(),
+    email: z.string().optional(),
+    phone_e164: z.string().optional(),
+  }).optional(),
+  quick_actions: z.array(QuickActionSchema).default([]),
+  active_subscriptions: z.array(
+    z.object({
+      id: z.string().optional(),
+      code: z.string().optional(),
+      name: z.string().optional(),
+      status: z.string().optional(),
+      activated_at: z.string().optional().nullable(),
+      expires_at: z.string().optional().nullable(),
+    })
+  ).optional(),
+  available_services: z.array(
+    z.object({
+      id: z.string().optional(),
+      code: z.string().optional(),
+      name: z.string().optional(),
+      category: z.string().optional(),
+      price: z.number().optional(),
+      currency: z.string().optional(),
+      validity_days: z.number().optional(),
+    })
+  ).optional(),
+});
+export type AgenticContext = z.infer<typeof AgenticContextSchema>;
 
 /**
  * Streaming chunk schema

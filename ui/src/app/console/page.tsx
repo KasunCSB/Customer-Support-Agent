@@ -8,6 +8,8 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { useAuthSession } from "@/hooks/useAuthSession";
 
+const demoDefaultEmail = process.env.NEXT_PUBLIC_DEMO_EMAIL || "";
+
 type Subscription = {
   id: string;
   code: string;
@@ -51,7 +53,7 @@ async function apiFetch(
 export default function ConsolePage() {
   const { token, setToken } = useAuthSession();
 
-  const [email, setEmail] = useState<string>("kasuncsb@gmail.com");
+  const [email, setEmail] = useState<string>(demoDefaultEmail);
   const [otpCode, setOtpCode] = useState("");
   const [otpStatus, setOtpStatus] = useState("");
 

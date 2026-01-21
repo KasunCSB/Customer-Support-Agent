@@ -15,7 +15,7 @@ from typing import Optional, Dict, Any
 
 from src.config import settings
 from src.logger import get_logger
-from src.core.llm import RAG_SYSTEM_PROMPT
+from src.core.llm import VOICE_RAG_SYSTEM_PROMPT
 
 from .events import (
     EventBus,
@@ -98,7 +98,7 @@ class ConversationController:
         system_prompt: Optional[str] = None,
     ):
         self._config = config or ControllerConfig()
-        self._system_prompt = system_prompt or RAG_SYSTEM_PROMPT
+        self._system_prompt = system_prompt or VOICE_RAG_SYSTEM_PROMPT
 
         # Event bus
         self._event_bus = EventBus()

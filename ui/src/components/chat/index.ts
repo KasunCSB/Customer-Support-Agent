@@ -6,3 +6,4 @@ export * from './ChatMessage';
 export * from './ChatInput';
 export * from './ChatMessagesList';
 export * from './ChatInterface';
+export * from './AgenticPanel';

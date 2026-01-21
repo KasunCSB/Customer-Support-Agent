@@ -37,6 +37,14 @@ class AuthService:
             {"email": email},
         )
 
+    def _get_user_by_phone(self, phone: str) -> Optional[dict]:
+        return db.fetch_one(
+            """
+            SELECT * FROM users WHERE phone_e164 = :phone AND status = 'active'
+            """,
+            {"phone": phone},
+        )
+
     def _get_active_verification(self, user_id: str, destination: str) -> Optional[dict]:
         return db.fetch_one(
             """
@@ -51,12 +59,8 @@ class AuthService:
             {"user_id": user_id, "destination": destination},
         )
 
-    def start_email_otp(self, email: str) -> dict:
-        """Create an OTP record and return the code (caller sends via email)."""
-        user = self._get_user_by_email(email)
-        if not user:
-            raise ValueError("User not found or inactive")
-
+    def _issue_otp(self, user: dict, destination: str) -> dict:
+        """Create an OTP record and return the code (caller sends)."""
         code = f"{secrets.randbelow(1000000):06d}"
         code_hash = _hash_value(code)
         verification_id = secrets.token_hex(16)
@@ -76,27 +80,23 @@ class AuthService:
             {
                 "id": verification_id,
                 "user_id": user["id"],
-                "destination": email,
+                "destination": destination,
                 "code_hash": code_hash,
                 "ttl": self.OTP_EXPIRY_MINUTES,
             },
         )
 
-        logger.info("Issued OTP for user %s to %s", user["id"], email)
+        logger.info("Issued OTP for user %s to %s", user["id"], destination)
         return {
             "user": user,
             "code": code,
             "expires_at": datetime.utcnow() + timedelta(minutes=self.OTP_EXPIRY_MINUTES),
             "verification_id": verification_id,
+            "destination": destination,
         }
 
-    def confirm_email_otp(self, email: str, code: str) -> dict:
-        """Validate OTP and create session token."""
-        user = self._get_user_by_email(email)
-        if not user:
-            raise ValueError("User not found or inactive")
-
-        verification = self._get_active_verification(user["id"], email)
+    def _confirm_otp(self, user: dict, destination: str, code: str) -> dict:
+        verification = self._get_active_verification(user["id"], destination)
         if not verification:
             raise ValueError("No active verification. Request a new code.")
 
@@ -124,6 +124,9 @@ class AuthService:
             {"id": verification["id"]},
         )
 
+        return self._create_session(user)
+
+    def _create_session(self, user: dict) -> dict:
         session_token = secrets.token_urlsafe(32)
         token_hash = _hash_value(session_token)
         session_id = secrets.token_hex(16)
@@ -150,15 +153,44 @@ class AuthService:
                 "role": user["role"],
                 "email": user["email"],
                 "display_name": user["display_name"],
+                "phone_e164": user.get("phone_e164"),
             },
         }
+
+    def start_email_otp(self, email: str) -> dict:
+        """Create an OTP record and return the code (caller sends via email)."""
+        user = self._get_user_by_email(email)
+        if not user:
+            raise ValueError("User not found or inactive")
+        return self._issue_otp(user, email)
+
+    def confirm_email_otp(self, email: str, code: str) -> dict:
+        """Validate OTP and create session token."""
+        user = self._get_user_by_email(email)
+        if not user:
+            raise ValueError("User not found or inactive")
+        return self._confirm_otp(user, email, code)
+
+    def start_phone_otp(self, phone: str) -> dict:
+        """Create an OTP record for a phone lookup and return the code."""
+        user = self._get_user_by_phone(phone)
+        if not user:
+            raise ValueError("User not found or inactive")
+        return self._issue_otp(user, user["email"])
+
+    def confirm_phone_otp(self, phone: str, code: str) -> dict:
+        """Validate OTP for a phone lookup and create session token."""
+        user = self._get_user_by_phone(phone)
+        if not user:
+            raise ValueError("User not found or inactive")
+        return self._confirm_otp(user, user["email"], code)
 
     def validate_session(self, token: str) -> Optional[dict]:
         """Validate bearer token and return user record or None."""
         token_hash = _hash_value(token)
         session = db.fetch_one(
             """
-            SELECT s.*, u.role, u.email, u.display_name
+            SELECT s.*, u.role, u.email, u.display_name, u.phone_e164
             FROM sessions s
             JOIN users u ON u.id = s.user_id
             WHERE s.token_hash = :token_hash

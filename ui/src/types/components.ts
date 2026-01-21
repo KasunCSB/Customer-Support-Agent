@@ -123,6 +123,7 @@ export interface ChatMessagesListProps extends BaseProps {
     sources?: Array<{ source: string }>;
   }>;
   isLoading?: boolean;
+  showWorking?: boolean;
 }
 
 // ============================================================================

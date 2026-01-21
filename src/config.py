@@ -250,6 +250,27 @@ class DatabaseConfig:
 
 
 @dataclass
+class AdminConfig:
+    """
+    Admin console authentication configuration.
+    """
+    username: str = field(default_factory=lambda: get_env("ADMIN_USERNAME", "ltadmin"))
+    password: str = field(default_factory=lambda: get_env("ADMIN_PASSWORD", "change_me_now"))
+    secret: str = field(default_factory=lambda: get_env("ADMIN_SECRET", "please_change_admin_secret"))
+    cookie_name: str = field(default_factory=lambda: get_env("ADMIN_COOKIE_NAME", "admin_session"))
+    cookie_ttl_hours: int = field(default_factory=lambda: get_env_int("ADMIN_COOKIE_TTL_HOURS", 12))
+    allowed_origins: list[str] = field(default_factory=lambda: [
+        origin.strip()
+        for origin in get_env("ADMIN_CORS_ORIGINS", "").split(",")
+        if origin.strip()
+    ])
+
+    def validate(self) -> None:
+        if self.password == "change_me_now" or self.secret.startswith("please_change"):
+            raise ValueError("ADMIN_PASSWORD and ADMIN_SECRET must be set to strong values in production.")
+
+
+@dataclass
 class EmailConfig:
     """
     Outbound email configuration for OTP/notifications.
@@ -258,7 +279,7 @@ class EmailConfig:
     smtp_port: int = field(default_factory=lambda: get_env_int("EMAIL_SMTP_PORT", 587))
     smtp_username: str = field(default_factory=lambda: get_env("EMAIL_SMTP_USERNAME", ""))
     smtp_password: str = field(default_factory=lambda: get_env("EMAIL_SMTP_PASSWORD", ""))
-    sender: str = field(default_factory=lambda: get_env("EMAIL_SENDER", "no-reply@kasunc.uk"))
+    sender: str = field(default_factory=lambda: get_env("EMAIL_SENDER", ""))
     sender_name: str = field(default_factory=lambda: get_env("EMAIL_SENDER_NAME", "LankaTel Assistant"))
     use_tls: bool = field(default_factory=lambda: get_env_bool("EMAIL_USE_TLS", True))
     enabled: bool = field(default_factory=lambda: get_env_bool("EMAIL_ENABLED", False))
@@ -321,6 +342,7 @@ class Settings:
     realtime: RealtimeConfig = field(default_factory=RealtimeConfig)
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     email: EmailConfig = field(default_factory=EmailConfig)
+    admin: AdminConfig = field(default_factory=AdminConfig)
     
     # Application-level settings
     app_env: str = field(default_factory=lambda: get_env("APP_ENV", "development"))
@@ -359,6 +381,9 @@ class Settings:
         """
         self.azure.validate()
         self.chunking.validate()
+        # Admin config must be strong in production
+        if self.is_production:
+            self.admin.validate()
         return True
 
 

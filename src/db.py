@@ -7,7 +7,7 @@ configured MySQL connection string.
 
 from __future__ import annotations
 
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Mapping, Optional
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine, Result
 
@@ -41,12 +41,12 @@ class Database:
         with self.engine.begin() as conn:
             return conn.execute(text(sql), params or {})
 
-    def fetch_one(self, sql: str, params: Optional[Mapping[str, Any]] = None) -> Optional[Mapping[str, Any]]:
+    def fetch_one(self, sql: str, params: Optional[Mapping[str, Any]] = None) -> Optional[dict[str, Any]]:
         result = self.execute(sql, params)
         row = result.mappings().first()
         return dict(row) if row else None
 
-    def fetch_all(self, sql: str, params: Optional[Mapping[str, Any]] = None) -> Sequence[Mapping[str, Any]]:
+    def fetch_all(self, sql: str, params: Optional[Mapping[str, Any]] = None) -> list[dict[str, Any]]:
         result = self.execute(sql, params)
         return [dict(r) for r in result.mappings().all()]
 

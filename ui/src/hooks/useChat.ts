@@ -9,6 +9,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { apiClient, APIClientError } from '@/lib/api-client';
+import { useAuthSession } from '@/hooks/useAuthSession';
 import {
   getSession,
   updateSession,
@@ -24,6 +25,8 @@ interface UseChatOptions {
 interface UseChatReturn {
   messages: Message[];
   isLoading: boolean;
+  showWorking: boolean;
+  needsVerification: boolean;
   error: Error | null;
   sendMessage: (content: string, overrideSessionId?: string) => Promise<void>;
   regenerateMessage: (messageId: string) => Promise<void>;
@@ -32,19 +35,35 @@ interface UseChatReturn {
 }
 
 export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
+  const { token } = useAuthSession();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showWorking, setShowWorking] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   
   // Track the last loaded session to prevent redundant loads
   const lastLoadedSessionRef = useRef<string | null>(null);
+  const pendingSessionIdRef = useRef<string | null>(null);
+  const activeMessagesSessionIdRef = useRef<string | null>(null);
+  const optimisticSessionIdRef = useRef<string | null>(null);
+  const messagesRef = useRef<Message[]>([]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   // Load messages from storage when session changes
   useEffect(() => {
     // No session - reset state
     if (!sessionId) {
+      if (pendingSessionIdRef.current) {
+        return;
+      }
       setMessages([]);
       lastLoadedSessionRef.current = null;
+      activeMessagesSessionIdRef.current = null;
+      optimisticSessionIdRef.current = null;
       return;
     }
     
@@ -63,8 +82,26 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
         
         // Only update if this is still the current session
         if (session?.messages && session.messages.length > 0) {
+          if (
+            activeMessagesSessionIdRef.current === sessionId &&
+            messagesRef.current.length > session.messages.length
+          ) {
+            lastLoadedSessionRef.current = sessionId;
+            return;
+          }
           setMessages(session.messages);
+          activeMessagesSessionIdRef.current = sessionId;
+          pendingSessionIdRef.current = null;
+          optimisticSessionIdRef.current = null;
         } else {
+          if (optimisticSessionIdRef.current === sessionId) {
+            lastLoadedSessionRef.current = sessionId;
+            return;
+          }
+          if (activeMessagesSessionIdRef.current === sessionId && messagesRef.current.length > 0) {
+            lastLoadedSessionRef.current = sessionId;
+            return;
+          }
           setMessages([]);
         }
         lastLoadedSessionRef.current = sessionId;
@@ -83,6 +120,12 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
     };
   }, [sessionId]);
 
+  useEffect(() => {
+    if (token) {
+      setNeedsVerification(false);
+    }
+  }, [token]);
+
   // Send a message - accepts optional overrideSessionId for when session was just created
   const sendMessage = useCallback(
     async (content: string, overrideSessionId?: string) => {
@@ -98,7 +141,20 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
       if (overrideSessionId) {
         lastLoadedSessionRef.current = overrideSessionId;
       }
+      pendingSessionIdRef.current = effectiveSessionId;
+      activeMessagesSessionIdRef.current = effectiveSessionId;
+      optimisticSessionIdRef.current = effectiveSessionId;
 
+      const normalized = content.toLowerCase();
+      const agenticIntent = [
+        /\b(create|open|raise|file)\b.*\bticket\b/,
+        /\b(activate|enable|start|subscribe)\b.*\b(service|plan|package|subscription)\b/,
+        /\b(deactivate|disable|stop|cancel)\b.*\b(service|plan|package|subscription)\b/,
+        /\b(list|show|view)\b.*\b(subscriptions?|tickets?)\b/,
+        /\b(check|track)\b.*\b(ticket|subscription)\b/,
+      ].some((pattern) => pattern.test(normalized));
+
+      setShowWorking(agenticIntent);
       setIsLoading(true);
       setError(null);
 
@@ -131,7 +187,10 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
         );
 
         // Use non-streaming chat API instead of streaming for more reliable responses
-        const response = await apiClient.chat(content, effectiveSessionId);
+        const response = await apiClient.chat(content, effectiveSessionId, {
+          authToken: token || undefined,
+        });
+        setNeedsVerification(Boolean(response.needs_verification));
 
         // Finalize assistant message
         const finalMessage: Message = {
@@ -179,9 +238,16 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
         onError?.(error);
       } finally {
         setIsLoading(false);
+        setShowWorking(false);
+        if (pendingSessionIdRef.current === effectiveSessionId) {
+          pendingSessionIdRef.current = null;
+        }
+        if (optimisticSessionIdRef.current === effectiveSessionId) {
+          optimisticSessionIdRef.current = null;
+        }
       }
     },
-    [sessionId, isLoading, onError]
+    [sessionId, isLoading, onError, token]
   );
 
   // Regenerate a message (re-query without duplicating user message)
@@ -200,6 +266,16 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
 
       if (!effectiveSessionId) return;
 
+      const normalized = userMessage.content.toLowerCase();
+      const agenticIntent = [
+        /\b(create|open|raise|file)\b.*\bticket\b/,
+        /\b(activate|enable|start|subscribe)\b.*\b(service|plan|package|subscription)\b/,
+        /\b(deactivate|disable|stop|cancel)\b.*\b(service|plan|package|subscription)\b/,
+        /\b(list|show|view)\b.*\b(subscriptions?|tickets?)\b/,
+        /\b(check|track)\b.*\b(ticket|subscription)\b/,
+      ].some((pattern) => pattern.test(normalized));
+
+      setShowWorking(agenticIntent);
       setIsLoading(true);
       setError(null);
 
@@ -219,7 +295,10 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
 
       try {
         // Re-query with the same user message content
-        const response = await apiClient.chat(userMessage.content, effectiveSessionId);
+        const response = await apiClient.chat(userMessage.content, effectiveSessionId, {
+          authToken: token || undefined,
+        });
+        setNeedsVerification(Boolean(response.needs_verification));
 
         // Finalize assistant message
         const finalMessage: Message = {
@@ -257,9 +336,10 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
         onError?.(error);
       } finally {
         setIsLoading(false);
+        setShowWorking(false);
       }
     },
-    [messages, sessionId, onError]
+    [messages, sessionId, onError, token]
   );
 
   // Clear error
@@ -275,6 +355,8 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
   return {
     messages,
     isLoading,
+    showWorking,
+    needsVerification,
     error,
     sendMessage,
     regenerateMessage,

@@ -14,10 +14,14 @@ import { useRouter } from 'next/navigation';
 import { HeroSection } from '@/components/landing/HeroSection';
 import { FloatingSidebar } from '@/components/layout/FloatingSidebar';
 import { ChatInterface } from '@/components/chat/ChatInterface';
+import { AgenticPanel } from '@/components/chat/AgenticPanel';
 import { useSessions } from '@/hooks/useSessions';
 import { useChat } from '@/hooks/useChat';
+import { useAuthSession } from '@/hooks/useAuthSession';
+import { apiClient } from '@/lib/api-client';
 import { getFriendlyError } from '@/lib/errors';
 import { type ChatModeId } from '@/lib/config';
+import type { QuickAction } from '@/types/api';
 
 export default function HomePage() {
   const router = useRouter();
@@ -25,6 +29,12 @@ export default function HomePage() {
   const [selectedMode, setSelectedMode] = useState<ChatModeId>('chat');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [phone, setPhone] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpStatus, setOtpStatus] = useState('');
+  const [agenticActions, setAgenticActions] = useState<QuickAction[]>([]);
+  const [loadingAgenticActions, setLoadingAgenticActions] = useState(false);
+  const { token, setToken } = useAuthSession();
 
   const {
     sessions,
@@ -48,12 +58,36 @@ export default function HomePage() {
   const {
     messages,
     isLoading: chatLoading,
+    showWorking,
+    needsVerification,
     sendMessage,
     regenerateMessage,
   } = useChat({
     sessionId: activeSessionId || '',
     onError: handleError,
   });
+
+  const loadAgenticActions = useCallback(async () => {
+    if (!token) return;
+    setLoadingAgenticActions(true);
+    try {
+      const data = await apiClient.getAgenticContext({ authToken: token });
+      setAgenticActions(data.quick_actions || []);
+    } catch (err) {
+      console.error('Failed to load quick actions:', err);
+      setAgenticActions([]);
+    } finally {
+      setLoadingAgenticActions(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) {
+      setAgenticActions([]);
+      return;
+    }
+    loadAgenticActions();
+  }, [token, loadAgenticActions]);
 
   // Handle mode selection from hero
   const handleModeSelect = (mode: ChatModeId) => {
@@ -113,6 +147,42 @@ export default function HomePage() {
     }
   };
 
+  const startOtp = async () => {
+    const cleaned = phone.replace(/[\s\-()]/g, '');
+    if (!/^\+?\d{9,15}$/.test(cleaned)) {
+      setOtpStatus('Enter a valid mobile number.');
+      return;
+    }
+    try {
+      setOtpStatus('Sending code...');
+      await apiClient.startPhoneOtp(cleaned);
+      setOtpStatus('Code sent to the email on file.');
+    } catch (err) {
+      setOtpStatus(err instanceof Error ? err.message : 'Failed to send code');
+    }
+  };
+
+  const confirmOtp = async () => {
+    if (!otpCode.trim()) {
+      setOtpStatus('Enter the verification code.');
+      return;
+    }
+    try {
+      setOtpStatus('Verifying...');
+      const cleaned = phone.replace(/[\s\-()]/g, '');
+      const data = await apiClient.confirmPhoneOtp(cleaned, otpCode.trim());
+      setToken(data.token);
+      setOtpStatus('Verified. Session active.');
+    } catch (err) {
+      setOtpStatus(err instanceof Error ? err.message : 'Verification failed');
+    }
+  };
+
+  const handleQuickAction = async (action: QuickAction) => {
+    if (!action.message) return;
+    await handleSendMessage(action.message);
+  };
+
   // Handle session delete
   const handleDeleteSession = async (id: string) => {
     try {
@@ -170,6 +240,23 @@ export default function HomePage() {
         <ChatInterface
           messages={messages}
           isLoading={chatLoading || isSending}
+          showWorking={showWorking}
+          agenticPanel={
+            <AgenticPanel
+              needsVerification={needsVerification}
+              isVerified={Boolean(token)}
+              phone={phone}
+              code={otpCode}
+              status={otpStatus}
+              onPhoneChange={setPhone}
+              onCodeChange={setOtpCode}
+              onStartOtp={startOtp}
+              onConfirmOtp={confirmOtp}
+              quickActions={agenticActions}
+              isLoadingActions={loadingAgenticActions}
+              onQuickAction={handleQuickAction}
+            />
+          }
           onSend={handleSendMessage}
           onRegenerate={regenerateMessage}
           activeSessionId={activeSessionId}

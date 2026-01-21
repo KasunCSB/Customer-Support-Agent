@@ -40,6 +40,12 @@ class ActionService:
     def __init__(self) -> None:
         pass
 
+    def _get_user_by_id(self, user_id: str) -> Optional[dict]:
+        return db.fetch_one(
+            "SELECT * FROM users WHERE id = :id AND status = 'active' LIMIT 1",
+            {"id": user_id},
+        )
+
     def _get_user_by_email_or_phone(self, email: Optional[str], phone: Optional[str]) -> Optional[dict]:
         if email:
             user = db.fetch_one(
@@ -61,6 +67,58 @@ class ActionService:
         return db.fetch_one(
             "SELECT * FROM services WHERE code = :code",
             {"code": code},
+        )
+
+    def get_balance(self, *, user_id: str) -> dict:
+        user = self._get_user_by_id(user_id)
+        if not user:
+            raise ValueError("User not found")
+        metadata = user.get("metadata") or {}
+        balance = None
+        if isinstance(metadata, dict):
+            balance = metadata.get("balance_lkr") or metadata.get("balance")
+        return {
+            "status": "available" if balance is not None else "unavailable",
+            "balance_lkr": balance,
+        }
+
+    def list_services(self, *, limit: int = 6) -> list:
+        return db.fetch_all(
+            """
+            SELECT id, code, name, category, price, currency, validity_days
+            FROM services
+            ORDER BY price ASC
+            LIMIT :limit
+            """,
+            {"limit": limit},
+        )
+
+    def list_active_subscriptions_by_user_id(self, *, user_id: str) -> list:
+        return db.fetch_all(
+            """
+            SELECT s.id, sv.code, sv.name, s.status, s.activated_at, s.expires_at
+            FROM subscriptions s
+            JOIN services sv ON sv.id = s.service_id
+            WHERE s.user_id = :user_id AND s.status = 'active'
+            ORDER BY s.updated_at DESC
+            """,
+            {"user_id": user_id},
+        )
+
+    def list_available_services_by_user_id(self, *, user_id: str, limit: int = 6) -> list:
+        return db.fetch_all(
+            """
+            SELECT sv.id, sv.code, sv.name, sv.category, sv.price, sv.currency, sv.validity_days
+            FROM services sv
+            LEFT JOIN subscriptions s
+              ON s.service_id = sv.id
+             AND s.user_id = :user_id
+             AND s.status = 'active'
+            WHERE s.id IS NULL
+            ORDER BY sv.price ASC
+            LIMIT :limit
+            """,
+            {"user_id": user_id, "limit": limit},
         )
 
     def create_ticket(self, *, actor_id: str, actor_role: str, user_email: Optional[str], user_phone: Optional[str], subject: str, description: str, priority: str = "normal", idempotency_key: Optional[str] = None) -> dict:

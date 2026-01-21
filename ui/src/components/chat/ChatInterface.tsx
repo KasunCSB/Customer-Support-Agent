@@ -6,7 +6,7 @@
 
 'use client';
 
-import { memo } from 'react';
+import { memo, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { ChatMessagesList } from './ChatMessagesList';
 import { ChatInput } from './ChatInput';
@@ -15,6 +15,8 @@ import type { Message } from '@/types/api';
 interface ChatInterfaceProps {
   messages: Message[];
   isLoading?: boolean;
+  showWorking?: boolean;
+  agenticPanel?: ReactNode;
   onSend: (content: string) => void;
   onRegenerate?: (messageId: string) => void;
   activeSessionId: string | null;
@@ -24,6 +26,8 @@ interface ChatInterfaceProps {
 const ChatInterface = memo(function ChatInterface({
   messages,
   isLoading = false,
+  showWorking = false,
+  agenticPanel,
   onSend,
   onRegenerate,
   activeSessionId,
@@ -36,10 +40,19 @@ const ChatInterface = memo(function ChatInterface({
         <ChatMessagesList
           messages={messages}
           isLoading={isLoading}
+          showWorking={showWorking}
           onRegenerate={onRegenerate}
           className="h-full"
         />
       </div>
+
+      {agenticPanel && (
+        <div className="px-4 md:px-6 pb-2">
+          <div className="max-w-3xl mx-auto">
+            {agenticPanel}
+          </div>
+        </div>
+      )}
 
       {/* Floating input at bottom */}
       <div className="p-4 md:p-6">

@@ -17,9 +17,16 @@ Architecture follows SOLID principles:
 - Dependency Inversion: Depend on abstractions, not concretions
 """
 
+import os
+
+from dotenv import load_dotenv
+
+# Load .env values so package metadata can be configured without code changes
+load_dotenv()
+
 __version__ = "5.0.0"
 __author__ = "Kasun Chanaka"
-__email__ = "kasuncsb@gmail.com"
+__email__ = os.getenv("APP_CONTACT_EMAIL", "support@example.com")
 
 from src.config import settings
 

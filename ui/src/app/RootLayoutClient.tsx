@@ -8,6 +8,7 @@
 'use client';
 
 import { ReactNode, createContext, useContext } from 'react';
+import { usePathname } from 'next/navigation';
 import { Toaster } from 'sonner';
 import { ThemeProvider, useTheme } from '@/components/providers/ThemeProvider';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -41,17 +42,20 @@ function RootLayoutInner({ children }: { children: ReactNode }) {
     retryInterval: 10000,
     maxRetries: 3,
   });
+  const pathname = usePathname();
+  const hideNavigation = pathname?.startsWith('/admin');
 
   return (
     <BackendHealthContext.Provider value={backendHealth}>
-      <div className="h-screen flex flex-col overflow-hidden">
-        <Navigation theme={theme} onThemeChange={setTheme} />
-        {/* Connection status banner - shows when disconnected */}
-        <ConnectionStatus
-          status={backendHealth.status}
-          error={backendHealth.error}
-          onRetry={backendHealth.retry}
-        />
+      <div className="min-h-screen flex flex-col overflow-hidden">
+        {!hideNavigation && <Navigation theme={theme} onThemeChange={setTheme} />}
+        {!hideNavigation && (
+          <ConnectionStatus
+            status={backendHealth.status}
+            error={backendHealth.error}
+            onRetry={backendHealth.retry}
+          />
+        )}
         <main className="flex-1 flex flex-col min-h-0 overflow-hidden">{children}</main>
         <Toaster
           position="top-right"

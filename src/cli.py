@@ -555,6 +555,7 @@ def cmd_voice_chat(args: argparse.Namespace) -> int:
     Uses Azure Speech Services for speech-to-text and text-to-speech.
     """
     from src.pipeline.rag_pipeline import RAGPipeline
+    from src.core.llm import VOICE_RAG_SYSTEM_PROMPT
     from src.core.speech import SpeechService
     
     print("\n" + "=" * 60)
@@ -566,7 +567,7 @@ def cmd_voice_chat(args: argparse.Namespace) -> int:
     
     try:
         # Initialize services
-        pipeline = RAGPipeline()
+        pipeline = RAGPipeline(system_prompt=VOICE_RAG_SYSTEM_PROMPT)
         speech = SpeechService()
         
         if pipeline.document_count == 0:
