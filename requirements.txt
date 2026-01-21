@@ -7,7 +7,7 @@ aiohttp>=3.9.0
 # API Server
 fastapi>=0.110.0
 uvicorn[standard]>=0.23.0
-pydantic>=2.5.0
+pydantic[email]>=2.5.0
 
 # Vector Store
 chromadb>=0.4.22

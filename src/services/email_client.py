@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import smtplib
 from email.message import EmailMessage
+from email.utils import formataddr
 from src.config import settings
 from src.logger import get_logger
 
@@ -28,7 +29,8 @@ class EmailClient:
             return
 
         msg = EmailMessage()
-        msg["From"] = self.config.sender
+        # Include display name if provided
+        msg["From"] = formataddr((self.config.sender_name, self.config.sender))
         msg["To"] = to_email
         msg["Subject"] = subject
         msg.set_content(body)

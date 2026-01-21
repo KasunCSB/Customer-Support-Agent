@@ -60,14 +60,12 @@ class AuthService:
         code = f"{secrets.randbelow(1000000):06d}"
         code_hash = _hash_value(code)
         verification_id = secrets.token_hex(16)
-        expires_at = datetime.utcnow() + timedelta(minutes=self.OTP_EXPIRY_MINUTES)
-
         db.execute(
             """
             INSERT INTO verifications (id, user_id, channel, destination, purpose, code_hash,
                                        expires_at, attempts, max_attempts, verified_at, created_at)
             VALUES (:id, :user_id, 'email', :destination, 'verification', :code_hash,
-                    :expires_at, 0, 5, NULL, NOW())
+                    DATE_ADD(NOW(), INTERVAL :ttl MINUTE), 0, 5, NULL, NOW())
             ON DUPLICATE KEY UPDATE
               code_hash = VALUES(code_hash),
               expires_at = VALUES(expires_at),
@@ -80,7 +78,7 @@ class AuthService:
                 "user_id": user["id"],
                 "destination": email,
                 "code_hash": code_hash,
-                "expires_at": expires_at,
+                "ttl": self.OTP_EXPIRY_MINUTES,
             },
         )
 
@@ -88,7 +86,7 @@ class AuthService:
         return {
             "user": user,
             "code": code,
-            "expires_at": expires_at,
+            "expires_at": datetime.utcnow() + timedelta(minutes=self.OTP_EXPIRY_MINUTES),
             "verification_id": verification_id,
         }
 
@@ -128,26 +126,25 @@ class AuthService:
 
         session_token = secrets.token_urlsafe(32)
         token_hash = _hash_value(session_token)
-        expires_at = datetime.utcnow() + timedelta(days=self.SESSION_EXPIRY_DAYS)
         session_id = secrets.token_hex(16)
 
         db.execute(
             """
             INSERT INTO sessions (id, user_id, token_hash, user_agent, ip_address, expires_at, revoked_at, created_at)
-            VALUES (:id, :user_id, :token_hash, '', '', :expires_at, NULL, NOW())
+            VALUES (:id, :user_id, :token_hash, '', '', DATE_ADD(NOW(), INTERVAL :ttl DAY), NULL, NOW())
             """,
             {
                 "id": session_id,
                 "user_id": user["id"],
                 "token_hash": token_hash,
-                "expires_at": expires_at,
+                "ttl": self.SESSION_EXPIRY_DAYS,
             },
         )
 
         logger.info("Created session for user %s", user["id"])
         return {
             "session_token": session_token,
-            "session_expires_at": expires_at,
+            "session_expires_at": datetime.utcnow() + timedelta(days=self.SESSION_EXPIRY_DAYS),
             "user": {
                 "id": user["id"],
                 "role": user["role"],

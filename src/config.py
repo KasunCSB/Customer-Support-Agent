@@ -259,6 +259,7 @@ class EmailConfig:
     smtp_username: str = field(default_factory=lambda: get_env("EMAIL_SMTP_USERNAME", ""))
     smtp_password: str = field(default_factory=lambda: get_env("EMAIL_SMTP_PASSWORD", ""))
     sender: str = field(default_factory=lambda: get_env("EMAIL_SENDER", "no-reply@kasunc.uk"))
+    sender_name: str = field(default_factory=lambda: get_env("EMAIL_SENDER_NAME", "LankaTel Assistant"))
     use_tls: bool = field(default_factory=lambda: get_env_bool("EMAIL_USE_TLS", True))
     enabled: bool = field(default_factory=lambda: get_env_bool("EMAIL_ENABLED", False))
 
