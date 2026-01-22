@@ -112,7 +112,12 @@ class ConversationMemory:
             assistant_message: Assistant's response
         """
         self.messages.append(Message(role="user", content=user_message))
-        self.messages.append(Message(role="assistant", content=assistant_message))
+        # Strip ACTION lines from assistant memory to avoid action echo on follow-ups.
+        cleaned_assistant = "\n".join(
+            line for line in assistant_message.splitlines()
+            if not line.strip().startswith("ACTION:")
+        )
+        self.messages.append(Message(role="assistant", content=cleaned_assistant))
         
         # Trim to max turns (each turn = 2 messages)
         max_messages = self.max_turns * 2
