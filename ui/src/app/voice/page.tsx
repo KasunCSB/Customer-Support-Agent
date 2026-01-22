@@ -36,6 +36,7 @@ function VoicePageContent() {
   const [phone, setPhone] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [otpStatus, setOtpStatus] = useState('');
+  const [manualOtpEntry, setManualOtpEntry] = useState(false);
   const [agenticActions, setAgenticActions] = useState<QuickAction[]>([]);
   const [loadingAgenticActions, setLoadingAgenticActions] = useState(false);
   const loadedActionsTokenRef = useRef<string | null>(null);
@@ -248,7 +249,25 @@ function VoicePageContent() {
     setOtpStep('phone');
     setOtpCode('');
     setOtpStatus('');
+    setManualOtpEntry(false);
   }, [token]);
+
+  const handlePhoneChange = useCallback((value: string) => {
+    setManualOtpEntry(true);
+    setPhone(value);
+    if (otpStep === 'code') {
+      setOtpStep('phone');
+      setOtpCode('');
+    }
+    if (!value.trim()) {
+      setOtpStatus('');
+    }
+  }, [otpStep]);
+
+  const handleCodeChange = useCallback((value: string) => {
+    setManualOtpEntry(true);
+    setOtpCode(value);
+  }, []);
 
   const loadAgenticActions = useCallback(async () => {
     if (!token) return;
@@ -941,7 +960,7 @@ function VoicePageContent() {
         }
       };
 
-      if (!token && needsVerification) {
+      if (!token && needsVerification && !manualOtpEntry) {
         if (otpStep === 'phone') {
           const detectedPhone = parsePhoneFromSpeech(text);
           if (detectedPhone) {
@@ -1085,7 +1104,7 @@ function VoicePageContent() {
       processingRef.current = false;
       setIsProcessing(false);
     }
-  }, [addTranscript, playTTS, token, setToken, needsVerification, otpStep, parsePhoneFromSpeech, parseOtpFromSpeech, startOtp, confirmOtp]);
+  }, [addTranscript, playTTS, token, setToken, needsVerification, otpStep, manualOtpEntry, parsePhoneFromSpeech, parseOtpFromSpeech, startOtp, confirmOtp]);
   
   // Keep processUserInputRef in sync
   useEffect(() => {
@@ -1340,8 +1359,8 @@ function VoicePageContent() {
                   phone={phone}
                   code={otpCode}
                   status={otpStatus}
-                  onPhoneChange={setPhone}
-                  onCodeChange={setOtpCode}
+                  onPhoneChange={handlePhoneChange}
+                  onCodeChange={handleCodeChange}
                   onStartOtp={startOtp}
                   onConfirmOtp={confirmOtp}
                   quickActions={agenticActions}

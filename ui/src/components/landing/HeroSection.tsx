@@ -20,9 +20,11 @@ interface HeroSectionProps {
   className?: string;
 }
 
+const MAX_WELCOME_LEN = 56;
+
 // Default welcome messages as fallback - tailored for LankaTel customer support
 const DEFAULT_WELCOMES = [
-  'Hi! How can I help with your LankaTel service today?',
+  'How can I help with your LankaTel service today?',
   'Welcome to LankaTel support. What can I do for you?',
   'Need help with your mobile or broadband? Ask away.',
   "Let's resolve your LankaTel query together.",
@@ -37,13 +39,49 @@ function normalizeWelcomeText(input: string): string {
   const trimmed = firstSentence.replace(/^[\u2014\-\s]+/, '').trim();
 
   // Keep it short so it never blows out the hero.
-  const maxLen = 56;
+  const maxLen = MAX_WELCOME_LEN;
   if (trimmed.length <= maxLen) return trimmed;
 
   // Try to cut at a word boundary.
   const sliced = trimmed.slice(0, maxLen);
   const lastSpace = sliced.lastIndexOf(' ');
   return (lastSpace > 24 ? sliced.slice(0, lastSpace) : sliced).trim() + '…';
+}
+
+function getTimeGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
+function stripGreetingPrefix(input: string): string {
+  return input.replace(/^(hi|hello|hey|good morning|good afternoon|good evening)\b[:,!.\-\s]*/i, '').trim();
+}
+
+function buildTimeAwareWelcome(input: string): string {
+  const normalized = normalizeWelcomeText(input);
+  const cleaned = stripGreetingPrefix(normalized);
+  const greeting = `${getTimeGreeting()}!`;
+
+  if (!cleaned) return greeting;
+
+  const combined = `${greeting} ${cleaned}`;
+  if (combined.length <= MAX_WELCOME_LEN) return combined;
+
+  const available = MAX_WELCOME_LEN - greeting.length - 1;
+  if (available <= 0) return greeting;
+
+  let trimmed = cleaned.slice(0, available).trim();
+  const lastSpace = trimmed.lastIndexOf(' ');
+  if (lastSpace > Math.max(18, Math.floor(available * 0.6))) {
+    trimmed = trimmed.slice(0, lastSpace).trim();
+  }
+  if (trimmed.length < cleaned.length) {
+    trimmed = `${trimmed}...`;
+  }
+
+  return trimmed ? `${greeting} ${trimmed}` : greeting;
 }
 
 const HeroSection = ({ onModeSelect, onStart, className }: HeroSectionProps) => {
@@ -56,11 +94,11 @@ const HeroSection = ({ onModeSelect, onStart, className }: HeroSectionProps) => 
     try {
       setIsLoadingWelcome(true);
       const response = await apiClient.getWelcomeMessage();
-      setWelcomeText(normalizeWelcomeText(response.message));
+      setWelcomeText(buildTimeAwareWelcome(response.message));
     } catch {
       // Fallback to random default message
       const randomIndex = Math.floor(Math.random() * DEFAULT_WELCOMES.length);
-      setWelcomeText(DEFAULT_WELCOMES[randomIndex]);
+      setWelcomeText(buildTimeAwareWelcome(DEFAULT_WELCOMES[randomIndex]));
     } finally {
       setIsLoadingWelcome(false);
     }
