@@ -45,7 +45,7 @@ function normalizeWelcomeText(input: string): string {
   // Try to cut at a word boundary.
   const sliced = trimmed.slice(0, maxLen);
   const lastSpace = sliced.lastIndexOf(' ');
-  return (lastSpace > 24 ? sliced.slice(0, lastSpace) : sliced).trim() + '…';
+  return (lastSpace > 24 ? sliced.slice(0, lastSpace) : sliced).trim() + '...';
 }
 
 function getTimeGreeting(): string {
@@ -56,7 +56,12 @@ function getTimeGreeting(): string {
 }
 
 function stripGreetingPrefix(input: string): string {
-  return input.replace(/^(hi|hello|hey|good morning|good afternoon|good evening)\b[:,!.\-\s]*/i, '').trim();
+  return input
+    .replace(
+      /^(hi|hello|hey|good (morning|afternoon|evening)|morning|afternoon|evening|good day)\b[:,!.\-\s]*/i,
+      ''
+    )
+    .trim();
 }
 
 function buildTimeAwareWelcome(input: string): string {
