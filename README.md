@@ -10,7 +10,7 @@
   </p>
 </div>
 
-A RAG-based AI customer support agent built with Azure OpenAI and ChromaDB. It includes a FastAPI backend, a Next.js UI, and optional voice and admin workflows.
+A RAG-based AI customer support agent built with Azure OpenAI and ChromaDB. It includes a FastAPI backend, a Next.js UI, and chat + voice workflows with agentic account actions.
 
 ## Scenario
 
@@ -26,7 +26,9 @@ LankaTel is a conceptual internet service provider in Sri Lanka. This project is
 - FastAPI backend API for the UI and external clients
 - Next.js UI with chat, voice, tools, and admin console
 - Agentic actions (tickets, subscriptions, balance) backed by MySQL
-- Optional Azure Speech integration for STT/TTS
+- OTP verification with a shared session across chat + voice
+- Quick actions panel in chat and voice once verified
+- Voice UI (browser STT + backend Azure TTS) and realtime CLI voice (Azure Speech)
 - Single-container Docker image with nginx reverse proxy
 
 ## Tech Stack
@@ -49,7 +51,8 @@ LankaTel is a conceptual internet service provider in Sri Lanka. This project is
 - MySQL 8.x (actions, sessions, admin data)
 
 ### Voice
-- Azure Speech Services (STT/TTS)
+- Browser Web Speech API (UI STT)
+- Azure Speech Services (backend TTS + CLI realtime STT/TTS)
 
 ### Email & Security
 - Zoho Mail SMTP for OTP/notifications
@@ -66,7 +69,7 @@ LankaTel is a conceptual internet service provider in Sri Lanka. This project is
                         |-> [RAG pipeline] -> [ChromaDB]
                         |-> [Azure OpenAI]
                         |-> [MySQL] (actions, sessions, admin)
-                        |-> [Azure Speech] (voice)
+                        |-> [Azure Speech] (voice + TTS)
 ```
 
 ## Project Structure
@@ -121,6 +124,7 @@ Customer-Support-Agent/
    ```bash
    mysql -u root -p < db/mysql_schema.sql
    ```
+   This creates the `lankatel_demo` database. Point `DB_URL` to it in `.env`.
 
 5. Test configuration
    ```bash
@@ -171,6 +175,24 @@ Customer-Support-Agent/
    ```
 
 The UI will be available at `http://localhost:3000` and the backend at `http://localhost:8000`.
+
+## Verification & Agentic Actions
+
+- Account actions require OTP verification (mobile number → code).
+- A verified session is shared across chat and voice in the UI.
+- Once verified, a quick actions panel appears with account shortcuts.
+- Action execution is done on non-streaming chat responses to keep tool calls deterministic.
+
+## Voice Modes
+
+### UI Voice (Web)
+- **STT:** Browser Web Speech API
+- **TTS:** Backend `/api/tts` (Azure Speech)
+- Supports agentic actions and OTP verification via voice
+
+### CLI Voice
+- `voice-chat`: turn-based speech with Azure Speech
+- `realtime`: low-latency full-duplex voice with barge-in
 
 ## CLI Reference
 
@@ -225,7 +247,7 @@ VECTORSTORE_DIR=./vectorstore
 VECTORSTORE_COLLECTION=support_docs
 
 # Optional services
-DB_URL=mysql+pymysql://user:password@localhost/ltagent
+DB_URL=mysql+pymysql://user:password@localhost/lankatel_demo
 AZURE_SPEECH_API_KEY=...
 AZURE_SPEECH_REGION=eastus
 
