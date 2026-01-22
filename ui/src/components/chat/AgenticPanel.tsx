@@ -15,6 +15,7 @@ import type { QuickAction } from '@/types/api';
 interface AgenticPanelProps {
   needsVerification: boolean;
   isVerified: boolean;
+  otpStep?: 'phone' | 'code';
   phone: string;
   code: string;
   status?: string;
@@ -30,6 +31,7 @@ interface AgenticPanelProps {
 const AgenticPanel = ({
   needsVerification,
   isVerified,
+  otpStep = 'phone',
   phone,
   code,
   status,
@@ -41,7 +43,8 @@ const AgenticPanel = ({
   isLoadingActions = false,
   onQuickAction,
 }: AgenticPanelProps) => {
-  if (!needsVerification && !isVerified) return null;
+  const shouldShowPanel = needsVerification || isVerified;
+  if (!shouldShowPanel) return null;
 
   return (
     <Card variant="outlined" className="border-primary-200/60 dark:border-primary-500/20 bg-primary-50/40 dark:bg-neutral-900/60">
@@ -59,7 +62,7 @@ const AgenticPanel = ({
       {!isVerified && needsVerification && (
         <div className="space-y-3">
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            Verify your account to run actions. Enter your mobile number to receive a code.
+            Account actions need verification. Enter your mobile number to receive a one-time code.
           </p>
           <div className="grid gap-3 md:grid-cols-[1fr_auto]">
             <Input
@@ -69,20 +72,22 @@ const AgenticPanel = ({
               label="Mobile number"
             />
             <Button onClick={onStartOtp} variant="primary">
-              Send code
+              {otpStep === 'code' ? 'Resend code' : 'Send code'}
             </Button>
           </div>
-          <div className="grid gap-3 md:grid-cols-[1fr_auto]">
-            <Input
-              value={code}
-              onChange={(e) => onCodeChange(e.target.value)}
-              placeholder="6-digit code"
-              label="Verification code"
-            />
-            <Button onClick={onConfirmOtp} variant="secondary">
-              Verify
-            </Button>
-          </div>
+          {otpStep === 'code' && (
+            <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+              <Input
+                value={code}
+                onChange={(e) => onCodeChange(e.target.value)}
+                placeholder="6-digit code"
+                label="Verification code"
+              />
+              <Button onClick={onConfirmOtp} variant="secondary">
+                Verify
+              </Button>
+            </div>
+          )}
           {status && (
             <div className="text-xs text-neutral-500 dark:text-neutral-400">
               {status}
@@ -100,18 +105,23 @@ const AgenticPanel = ({
             <div className="text-xs text-neutral-500 dark:text-neutral-400">
               Loading actions...
             </div>
-          ) : (
-            <div className="flex flex-wrap gap-2">
+          ) : quickActions.length > 0 ? (
+            <div className="flex gap-2 overflow-x-auto pb-1 flex-nowrap">
               {quickActions.map((action) => (
                 <Button
                   key={action.id}
                   variant="outline"
                   size="sm"
+                  className="shrink-0 whitespace-nowrap"
                   onClick={() => onQuickAction(action)}
                 >
                   {action.label}
                 </Button>
               ))}
+            </div>
+          ) : (
+            <div className="text-xs text-neutral-500 dark:text-neutral-400">
+              No quick actions available yet.
             </div>
           )}
           {status && (

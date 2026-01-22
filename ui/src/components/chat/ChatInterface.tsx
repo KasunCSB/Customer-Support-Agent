@@ -42,17 +42,10 @@ const ChatInterface = memo(function ChatInterface({
           isLoading={isLoading}
           showWorking={showWorking}
           onRegenerate={onRegenerate}
+          inlinePanel={agenticPanel}
           className="h-full"
         />
       </div>
-
-      {agenticPanel && (
-        <div className="px-4 md:px-6 pb-2">
-          <div className="max-w-3xl mx-auto">
-            {agenticPanel}
-          </div>
-        </div>
-      )}
 
       {/* Floating input at bottom */}
       <div className="p-4 md:p-6">

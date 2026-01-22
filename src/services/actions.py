@@ -5,7 +5,7 @@ Action service: create tickets and manage subscriptions.
 from __future__ import annotations
 
 import secrets
-from typing import Optional, Tuple
+from typing import Optional
 
 from src.db import db
 from src.logger import get_logger
@@ -32,6 +32,16 @@ def _write_audit(actor_id: str, actor_role: str, action: str, target_type: Optio
             "severity": severity,
         },
     )
+
+
+def _coerce_json(value: object) -> object:
+    if isinstance(value, dict):
+        return {str(k): _coerce_json(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_coerce_json(v) for v in value]
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    return str(value)
 
 
 class ActionService:
@@ -69,18 +79,71 @@ class ActionService:
             {"code": code},
         )
 
+    def _record_action(self, *, user_id: str, action_name: str, params: dict, result: dict) -> None:
+        params = _coerce_json(params)
+        result = _coerce_json(result)
+        action_id = secrets.token_hex(16)
+        db.execute(
+            """
+            INSERT INTO actions (id, idempotency_key, session_id, user_id, action_name, status, requires_confirmation, params, result, created_at, completed_at)
+            VALUES (:id, :idem, NULL, :user_id, :action_name, 'completed', 0, :params, :result, NOW(), NOW())
+            """,
+            {
+                "id": action_id,
+                "idem": f"auto-{action_id}",
+                "user_id": user_id,
+                "action_name": action_name,
+                "params": params,
+                "result": result,
+            },
+        )
+
     def get_balance(self, *, user_id: str) -> dict:
         user = self._get_user_by_id(user_id)
         if not user:
             raise ValueError("User not found")
         metadata = user.get("metadata") or {}
-        balance = None
-        if isinstance(metadata, dict):
-            balance = metadata.get("balance_lkr") or metadata.get("balance")
-        return {
+        balance = user.get("balance_lkr")
+        if balance is None:
+            balance = user.get("balance")
+        if isinstance(metadata, dict) and balance is None:
+            balance = metadata.get("balance_lkr")
+            if balance is None:
+                balance = metadata.get("balance")
+        response = {
             "status": "available" if balance is not None else "unavailable",
             "balance_lkr": balance,
         }
+        self._record_action(
+            user_id=user_id,
+            action_name="check_balance",
+            params={},
+            result=response,
+        )
+        return response
+
+    def get_connection_info(self, *, user_id: str) -> dict:
+        user = self._get_user_by_id(user_id)
+        if not user:
+            raise ValueError("User not found")
+        response = {
+            "user_id": user.get("id"),
+            "display_name": user.get("display_name"),
+            "email": user.get("email"),
+            "phone_e164": user.get("phone_e164"),
+            "status": user.get("status"),
+            "connection_valid_until": user.get("connection_valid_until"),
+        }
+        self._record_action(
+            user_id=user_id,
+            action_name="get_connection_info",
+            params={},
+            result={
+                "status": response.get("status"),
+                "connection_valid_until": response.get("connection_valid_until"),
+            },
+        )
+        return response
 
     def list_services(self, *, limit: int = 6) -> list:
         return db.fetch_all(
@@ -338,19 +401,47 @@ class ActionService:
             """,
             {"user_id": user["id"]},
         )
+        self._record_action(
+            user_id=user["id"],
+            action_name="list_subscriptions",
+            params={},
+            result={"count": len(rows)},
+        )
         return rows
 
-    def list_tickets(self, *, user_email: Optional[str], user_phone: Optional[str]) -> list:
+    def list_tickets(self, *, user_email: Optional[str], user_phone: Optional[str], external_id: Optional[str] = None) -> list:
         user = self._get_user_by_email_or_phone(user_email, user_phone)
         if not user:
             raise ValueError("User not found")
-        rows = db.fetch_all(
-            """
+        filter_sql = ""
+        params = {"user_id": user["id"]}
+        if external_id:
+            filter_sql = "AND t.external_id = :external_id"
+            params["external_id"] = external_id
+        sql = f"""
             SELECT t.external_id, t.subject, t.priority, t.status, t.created_at, t.updated_at
             FROM tickets t
             WHERE t.user_id = :user_id
+            {filter_sql}
             ORDER BY t.updated_at DESC
-            """,
-            {"user_id": user["id"]},
+            """
+        rows = db.fetch_all(sql, params)
+        self._record_action(
+            user_id=user["id"],
+            action_name="list_tickets",
+            params={"external_id": external_id} if external_id else {},
+            result={"count": len(rows)},
         )
         return rows
+
+    def list_recent_actions_by_user_id(self, *, user_id: str, limit: int = 5) -> list:
+        return db.fetch_all(
+            """
+            SELECT action_name, status, created_at, completed_at
+            FROM actions
+            WHERE user_id = :user_id
+            ORDER BY created_at DESC
+            LIMIT :limit
+            """,
+            {"user_id": user_id, "limit": limit},
+        )

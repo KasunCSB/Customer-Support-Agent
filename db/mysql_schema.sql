@@ -21,6 +21,8 @@ CREATE TABLE IF NOT EXISTS users (
   role ENUM('customer','agent','admin') NOT NULL DEFAULT 'customer',
   status ENUM('active','suspended') NOT NULL DEFAULT 'active',
   preferred_channel ENUM('email','phone') DEFAULT 'email',
+  balance_lkr DECIMAL(10,2) NULL,
+  connection_valid_until DATETIME NULL,
   metadata JSON NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -182,12 +184,12 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- =============================================================================
 
 -- Users
-INSERT INTO users (id, external_id, email, phone_e164, display_name, role, status, preferred_channel, metadata)
+INSERT INTO users (id, external_id, email, phone_e164, display_name, role, status, preferred_channel, balance_lkr, connection_valid_until, metadata)
 VALUES
-  ('11111111-aaaa-4bbb-8888-000000000001', 'ACC1001', 'kasuncsb@gmail.com', '+94770011111', 'Anushka Perera', 'customer', 'active', 'email', JSON_OBJECT('city','Colombo')),
-  ('11111111-aaaa-4bbb-8888-000000000002', 'ACC1002', 'maya@kasunc.uk', '+94770022222', 'Maya Fernando', 'customer', 'active', 'email', JSON_OBJECT('city','Kandy')),
-  ('11111111-aaaa-4bbb-8888-0000000000a1', 'AGENT001', 'agent.ramesh@kasunc.uk', '+94770033333', 'Agent Ramesh', 'agent', 'active', 'email', JSON_OBJECT('team','support')),
-  ('11111111-aaaa-4bbb-8888-0000000000b1', 'OPSADMIN', 'ops.admin@kasunc.uk', '+94770044444', 'Ops Admin', 'admin', 'active', 'email', JSON_OBJECT('department','operations'))
+  ('11111111-aaaa-4bbb-8888-000000000001', 'ACC1001', 'kasuncsb@gmail.com', '+94770011111', 'Anushka Perera', 'customer', 'active', 'email', 1250.75, DATE_ADD(NOW(), INTERVAL 365 DAY), JSON_OBJECT('city','Colombo')),
+  ('11111111-aaaa-4bbb-8888-000000000002', 'ACC1002', 'maya@kasunc.uk', '+94770022222', 'Maya Fernando', 'customer', 'active', 'email', 420.00, DATE_ADD(NOW(), INTERVAL 180 DAY), JSON_OBJECT('city','Kandy')),
+  ('11111111-aaaa-4bbb-8888-0000000000a1', 'AGENT001', 'agent.ramesh@kasunc.uk', '+94770033333', 'Agent Ramesh', 'agent', 'active', 'email', NULL, NULL, JSON_OBJECT('team','support')),
+  ('11111111-aaaa-4bbb-8888-0000000000b1', 'OPSADMIN', 'ops.admin@kasunc.uk', '+94770044444', 'Ops Admin', 'admin', 'active', 'email', NULL, NULL, JSON_OBJECT('department','operations'))
 ON DUPLICATE KEY UPDATE updated_at = CURRENT_TIMESTAMP;
 
 -- Email verifications (sample: Anushka verified)

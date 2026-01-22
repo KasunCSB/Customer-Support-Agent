@@ -71,7 +71,7 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
     if (lastLoadedSessionRef.current === sessionId) {
       return;
     }
-    
+
     // New session - load messages
     let cancelled = false;
     
@@ -147,11 +147,15 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
 
       const normalized = content.toLowerCase();
       const agenticIntent = [
+        /\b(balance|account balance|check balance)\b/,
         /\b(create|open|raise|file)\b.*\bticket\b/,
-        /\b(activate|enable|start|subscribe)\b.*\b(service|plan|package|subscription)\b/,
-        /\b(deactivate|disable|stop|cancel)\b.*\b(service|plan|package|subscription)\b/,
-        /\b(list|show|view)\b.*\b(subscriptions?|tickets?)\b/,
-        /\b(check|track)\b.*\b(ticket|subscription)\b/,
+        /\b(activate|enable|start|subscribe|buy|add)\b.*\b(service|plan|package|subscription|pack|vas|sms|voice|bundle)\b/,
+        /\b(deactivate|disable|stop|cancel|remove)\b.*\b(service|plan|package|subscription|pack|vas|sms|voice|bundle)\b/,
+        /\b(list|show|view)\b.*\b(subscriptions?|tickets?|actions?|activity|history)\b/,
+        /\b(check|track)\b.*\b(ticket|subscription|status)\b/,
+        /\b(connection|account)\b.*\b(info|information|details|status|validity|expiry|expires)\b/,
+        /\b(recent|latest)\b.*\b(actions?|activity|requests|history)\b/,
+        /\b(live agent|human agent|talk to (a )?agent|representative|customer care|call back|callback)\b/,
       ].some((pattern) => pattern.test(normalized));
 
       setShowWorking(agenticIntent);
@@ -268,11 +272,15 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
 
       const normalized = userMessage.content.toLowerCase();
       const agenticIntent = [
+        /\b(balance|account balance|check balance)\b/,
         /\b(create|open|raise|file)\b.*\bticket\b/,
-        /\b(activate|enable|start|subscribe)\b.*\b(service|plan|package|subscription)\b/,
-        /\b(deactivate|disable|stop|cancel)\b.*\b(service|plan|package|subscription)\b/,
-        /\b(list|show|view)\b.*\b(subscriptions?|tickets?)\b/,
-        /\b(check|track)\b.*\b(ticket|subscription)\b/,
+        /\b(activate|enable|start|subscribe|buy|add)\b.*\b(service|plan|package|subscription|pack|vas|sms|voice|bundle)\b/,
+        /\b(deactivate|disable|stop|cancel|remove)\b.*\b(service|plan|package|subscription|pack|vas|sms|voice|bundle)\b/,
+        /\b(list|show|view)\b.*\b(subscriptions?|tickets?|actions?|activity|history)\b/,
+        /\b(check|track)\b.*\b(ticket|subscription|status)\b/,
+        /\b(connection|account)\b.*\b(info|information|details|status|validity|expiry|expires)\b/,
+        /\b(recent|latest)\b.*\b(actions?|activity|requests|history)\b/,
+        /\b(live agent|human agent|talk to (a )?agent|representative|customer care|call back|callback)\b/,
       ].some((pattern) => pattern.test(normalized));
 
       setShowWorking(agenticIntent);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 const STORAGE_KEY = 'ltagent_session_token';
 
@@ -12,7 +12,7 @@ export function useAuthSession() {
     }
   }, []);
 
-  const saveToken = (value: string | null) => {
+  const saveToken = useCallback((value: string | null) => {
     if (typeof window === 'undefined') return;
     if (value) {
       localStorage.setItem(STORAGE_KEY, value);
@@ -20,7 +20,7 @@ export function useAuthSession() {
       localStorage.removeItem(STORAGE_KEY);
     }
     setToken(value);
-  };
+  }, [setToken]);
 
   return { token, setToken: saveToken };
 }

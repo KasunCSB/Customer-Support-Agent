@@ -401,13 +401,110 @@ def _parse_action_line(text: str) -> Optional[dict]:
     return None
 
 
+def _strip_action_lines(text: str) -> str:
+    """Remove ACTION lines from assistant output before showing the user."""
+    lines = [line for line in text.splitlines() if not line.strip().startswith("ACTION:")]
+    return "\n".join(lines).strip()
+
+
+def _format_datetime(value: Optional[object]) -> str:
+    if value is None:
+        return "N/A"
+    return str(value)
+
+
+def _format_action_result(action_name: str, action_result: object) -> str:
+    if isinstance(action_result, dict) and action_result.get("error"):
+        return f"Action failed: {action_result['error']}"
+
+    if action_name == "check_balance":
+        if not isinstance(action_result, dict):
+            return ""
+        balance = action_result.get("balance_lkr")
+        if balance is None:
+            return "Balance is unavailable for this account."
+        return f"Your balance is LKR {balance}."
+
+    if action_name == "get_connection_info":
+        if not isinstance(action_result, dict):
+            return ""
+        return (
+            "Connection details:\n"
+            f"- Status: {action_result.get('status', 'N/A')}\n"
+            f"- Valid until: {_format_datetime(action_result.get('connection_valid_until'))}\n"
+            f"- Phone: {action_result.get('phone_e164', 'N/A')}\n"
+            f"- Email: {action_result.get('email', 'N/A')}"
+        )
+
+    if action_name == "list_recent_actions":
+        if not isinstance(action_result, list):
+            return ""
+        if not action_result:
+            return "No recent account actions found."
+        lines = [
+            f"- {item.get('action_name', 'action')} | {item.get('status', 'unknown')} | {_format_datetime(item.get('created_at'))}"
+            for item in action_result
+        ]
+        return "Recent account actions:\n" + "\n".join(lines)
+
+    if action_name == "list_subscriptions":
+        if not isinstance(action_result, list):
+            return ""
+        if not action_result:
+            return "No subscriptions found on this account."
+        lines = [
+            f"- {item.get('name', 'Service')} ({item.get('code', 'N/A')}) | {item.get('status', 'unknown')} | Expires: {_format_datetime(item.get('expires_at'))}"
+            for item in action_result
+        ]
+        return "Subscriptions:\n" + "\n".join(lines)
+
+    if action_name == "list_tickets":
+        if not isinstance(action_result, list):
+            return ""
+        if not action_result:
+            return "No tickets found for this account."
+        lines = [
+            f"- {item.get('external_id', 'TICKET')} | {item.get('subject', 'Support request')} | {item.get('status', 'unknown')}"
+            for item in action_result
+        ]
+        return "Tickets:\n" + "\n".join(lines)
+
+    if action_name == "create_ticket":
+        if not isinstance(action_result, dict):
+            return ""
+        ticket_id = action_result.get("ticket_id")
+        if ticket_id:
+            return f"Ticket created: {ticket_id}."
+        return "Ticket created."
+
+    if action_name == "activate_service":
+        if not isinstance(action_result, dict):
+            return ""
+        code = action_result.get("service_code", "service")
+        status = action_result.get("status", "activated")
+        return f"{code} is {status}."
+
+    if action_name == "deactivate_service":
+        if not isinstance(action_result, dict):
+            return ""
+        code = action_result.get("service_code", "service")
+        status = action_result.get("status", "cancelled")
+        return f"{code} is {status}."
+
+    return ""
+
+
 _AGENTIC_PATTERNS = [
     re.compile(r"\b(balance|check balance|account balance)\b", re.IGNORECASE),
     re.compile(r"\b(create|open|raise|file)\b.*\bticket\b", re.IGNORECASE),
-    re.compile(r"\b(activate|enable|start|subscribe)\b.*\b(service|plan|package|subscription)\b", re.IGNORECASE),
-    re.compile(r"\b(deactivate|disable|stop|cancel)\b.*\b(service|plan|package|subscription)\b", re.IGNORECASE),
-    re.compile(r"\b(list|show|view)\b.*\b(subscriptions?|tickets?)\b", re.IGNORECASE),
-    re.compile(r"\b(check|track)\b.*\b(ticket|subscription)\b", re.IGNORECASE),
+    re.compile(r"\b(activate|enable|start|subscribe|buy|add)\b.*\b(service|plan|package|subscription|pack|vas|sms|voice|bundle)\b", re.IGNORECASE),
+    re.compile(r"\b(deactivate|disable|stop|cancel|remove)\b.*\b(service|plan|package|subscription|pack|vas|sms|voice|bundle)\b", re.IGNORECASE),
+    re.compile(r"\b(list|show|view)\b.*\b(subscriptions?|tickets?|actions?|activity|history)\b", re.IGNORECASE),
+    re.compile(r"\b(check|track)\b.*\b(ticket|subscription|status)\b", re.IGNORECASE),
+    re.compile(r"\b(live agent|human agent|talk to (a )?agent|representative|customer care|call back|callback)\b", re.IGNORECASE),
+    re.compile(r"\b(connection|account)\b.*\b(info|information|details|status|validity|expiry|expires)\b", re.IGNORECASE),
+    re.compile(r"\b(recent|latest)\b.*\b(actions?|activity|requests|history)\b", re.IGNORECASE),
+    re.compile(r"\bmy\b.*\b(account|number|plan|subscription|ticket|balance|actions|activity)\b", re.IGNORECASE),
 ]
 
 
@@ -539,12 +636,15 @@ async def chat(request: ChatRequest, http_request: Request):
             # Attempt action parsing (only non-streaming)
             action_data = _parse_action_line(result.answer)
             action_result = None
+            action_name = None
+            params: dict = {}
             if action_data:
+                action_name = action_data.get("action")
+                params = action_data.get("params") or {}
                 if not session:
                     action_result = {"error": "Verification required before performing actions."}
+                    needs_verification = True
                 else:
-                    action_name = action_data.get("action")
-                    params = action_data.get("params", {})
                     try:
                         user_email = params.get("email") or session.get("email")
                         user_phone = params.get("phone") or session.get("phone_e164")
@@ -559,22 +659,32 @@ async def chat(request: ChatRequest, http_request: Request):
                                 priority=params.get("priority", "normal"),
                                 idempotency_key=params.get("idempotency_key"),
                             )
+                        elif action_name == "get_connection_info":
+                            action_result = action_service.get_connection_info(
+                                user_id=session["user_id"],
+                            )
                         elif action_name == "activate_service":
+                            service_code = params.get("service_code")
+                            if not service_code:
+                                raise ValueError("service_code is required")
                             action_result = action_service.activate_service(
                                 actor_id=session["user_id"],
                                 actor_role=session["role"],
                                 user_email=user_email,
                                 user_phone=user_phone,
-                                service_code=params.get("service_code"),
+                                service_code=service_code,
                                 idempotency_key=params.get("idempotency_key"),
                             )
                         elif action_name == "deactivate_service":
+                            service_code = params.get("service_code")
+                            if not service_code:
+                                raise ValueError("service_code is required")
                             action_result = action_service.deactivate_service(
                                 actor_id=session["user_id"],
                                 actor_role=session["role"],
                                 user_email=user_email,
                                 user_phone=user_phone,
-                                service_code=params.get("service_code"),
+                                service_code=service_code,
                                 idempotency_key=params.get("idempotency_key"),
                             )
                         elif action_name == "list_subscriptions":
@@ -586,6 +696,18 @@ async def chat(request: ChatRequest, http_request: Request):
                             action_result = action_service.list_tickets(
                                 user_email=user_email,
                                 user_phone=user_phone,
+                                external_id=params.get("ticket_id") or params.get("external_id"),
+                            )
+                        elif action_name == "list_recent_actions":
+                            raw_limit = params.get("limit", 5)
+                            try:
+                                limit_val = int(raw_limit)
+                            except (TypeError, ValueError):
+                                limit_val = 5
+                            limit_val = min(max(limit_val, 1), 20)
+                            action_result = action_service.list_recent_actions_by_user_id(
+                                user_id=session["user_id"],
+                                limit=limit_val,
                             )
                         elif action_name == "check_balance":
                             action_result = action_service.get_balance(
@@ -596,8 +718,19 @@ async def chat(request: ChatRequest, http_request: Request):
                     except Exception as e:
                         action_result = {"error": str(e)}
             
+            clean_answer = _strip_action_lines(result.answer)
+            if session is None and not needs_verification:
+                if re.search(r"\b(otp|verification|verify|one-time)\b", result.answer, re.IGNORECASE):
+                    needs_verification = True
+            action_summary = ""
+            if action_data and action_name:
+                action_summary = _format_action_result(action_name, action_result)
+            if action_summary:
+                clean_answer = f"{clean_answer}\n\n{action_summary}".strip() if clean_answer else action_summary
+            elif action_data and not clean_answer:
+                clean_answer = "Got it. Working on that now."
             response_payload = {
-                "answer": result.answer,
+                "answer": clean_answer,
                 "sources": [
                     {
                         "source": s.get("source", ""),
@@ -954,13 +1087,22 @@ async def list_subscriptions(http_request: Request, email: Optional[EmailStr] = 
 
 
 @app.get("/api/actions/tickets")
-async def list_tickets(http_request: Request, email: Optional[EmailStr] = None, phone: Optional[str] = None):
+async def list_tickets(
+    http_request: Request,
+    email: Optional[EmailStr] = None,
+    phone: Optional[str] = None,
+    ticket_id: Optional[str] = None,
+):
     """List tickets for a verified user."""
     session = _require_session(http_request)
     try:
         user_email = email or session.get("email")
         user_phone = phone or session.get("phone_e164")
-        items = action_service.list_tickets(user_email=user_email, user_phone=user_phone)
+        items = action_service.list_tickets(
+            user_email=user_email,
+            user_phone=user_phone,
+            external_id=ticket_id,
+        )
         return {"tickets": items}
     except Exception as e:
         logger.error(f"List tickets error: {e}")
@@ -979,6 +1121,34 @@ async def get_balance(http_request: Request):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.get("/api/actions/connection")
+async def get_connection_info(http_request: Request):
+    """Get connection info for a verified user."""
+    session = _require_session(http_request)
+    try:
+        result = action_service.get_connection_info(user_id=session["user_id"])
+        return {"success": True, **result}
+    except Exception as e:
+        logger.error(f"Connection info error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/actions/recent-actions")
+async def list_recent_actions(http_request: Request, limit: int = 5):
+    """List recent account actions for a verified user."""
+    session = _require_session(http_request)
+    capped_limit = min(max(limit, 1), 20)
+    try:
+        items = action_service.list_recent_actions_by_user_id(
+            user_id=session["user_id"],
+            limit=capped_limit,
+        )
+        return {"actions": items}
+    except Exception as e:
+        logger.error(f"Recent actions error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.get("/api/agentic/quick-actions")
 async def agentic_quick_actions(http_request: Request):
     """Return quick actions tailored to the verified user."""
@@ -994,18 +1164,36 @@ async def agentic_quick_actions(http_request: Request):
 
         quick_actions = [
             {"id": "check_balance", "label": "Check balance", "message": "Check my balance."},
+            {"id": "connection_info", "label": "Connection info", "message": "Show my connection information."},
+            {"id": "recent_actions", "label": "Recent activity", "message": "Show my recent account actions."},
             {"id": "list_subscriptions", "label": "View subscriptions", "message": "List my subscriptions."},
             {"id": "list_tickets", "label": "View tickets", "message": "Show my tickets."},
+            {"id": "live_agent", "label": "Talk to live agent", "message": "I want to talk to a live agent."},
         ]
 
-        for service in available_services:
+        max_quick_actions = 8
+        dynamic_slots = max(0, max_quick_actions - len(quick_actions))
+        activate_slots = 0
+        deactivate_slots = 0
+        if dynamic_slots:
+            activate_slots = min(len(available_services), (dynamic_slots + 1) // 2)
+            deactivate_slots = min(len(active_subs), dynamic_slots - activate_slots)
+
+            remaining = dynamic_slots - (activate_slots + deactivate_slots)
+            if remaining:
+                if len(available_services) - activate_slots > len(active_subs) - deactivate_slots:
+                    activate_slots += min(remaining, len(available_services) - activate_slots)
+                else:
+                    deactivate_slots += min(remaining, len(active_subs) - deactivate_slots)
+
+        for service in available_services[:activate_slots]:
             quick_actions.append({
                 "id": f"activate_{service['code']}",
                 "label": f"Activate {service['name']}",
                 "message": f"Please activate {service['code']} for my account.",
             })
 
-        for sub in active_subs:
+        for sub in active_subs[:deactivate_slots]:
             quick_actions.append({
                 "id": f"deactivate_{sub['code']}",
                 "label": f"Deactivate {sub['name']}",
@@ -1117,3 +1305,5 @@ if __name__ == "__main__":
         port=8000,
         reload=True,
     )
+
+

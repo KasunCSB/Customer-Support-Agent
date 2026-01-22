@@ -7,7 +7,7 @@
 
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
@@ -18,7 +18,7 @@ import { AgenticPanel } from '@/components/chat/AgenticPanel';
 import { useSessions } from '@/hooks/useSessions';
 import { useChat } from '@/hooks/useChat';
 import { useAuthSession } from '@/hooks/useAuthSession';
-import { apiClient } from '@/lib/api-client';
+import { apiClient, APIClientError } from '@/lib/api-client';
 import { getFriendlyError } from '@/lib/errors';
 import { type ChatModeId } from '@/lib/config';
 import type { QuickAction } from '@/types/api';
@@ -32,9 +32,12 @@ export default function HomePage() {
   const [phone, setPhone] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [otpStatus, setOtpStatus] = useState('');
+  const [otpStep, setOtpStep] = useState<'phone' | 'code'>('phone');
+  const [verificationRequired, setVerificationRequired] = useState(false);
   const [agenticActions, setAgenticActions] = useState<QuickAction[]>([]);
   const [loadingAgenticActions, setLoadingAgenticActions] = useState(false);
   const { token, setToken } = useAuthSession();
+  const loadedActionsTokenRef = useRef<string | null>(null);
 
   const {
     sessions,
@@ -67,6 +70,19 @@ export default function HomePage() {
     onError: handleError,
   });
 
+  useEffect(() => {
+    if (needsVerification) {
+      setVerificationRequired(true);
+    }
+  }, [needsVerification]);
+
+  useEffect(() => {
+    setVerificationRequired(false);
+    setOtpStep('phone');
+    setOtpCode('');
+    setOtpStatus('');
+  }, [activeSessionId]);
+
   const loadAgenticActions = useCallback(async () => {
     if (!token) return;
     setLoadingAgenticActions(true);
@@ -76,16 +92,27 @@ export default function HomePage() {
     } catch (err) {
       console.error('Failed to load quick actions:', err);
       setAgenticActions([]);
+      if (err instanceof APIClientError && /unauthorized|invalid or expired session/i.test(err.message)) {
+        setToken(null);
+      }
     } finally {
       setLoadingAgenticActions(false);
     }
-  }, [token]);
+  }, [token, setToken]);
 
   useEffect(() => {
     if (!token) {
       setAgenticActions([]);
+      loadedActionsTokenRef.current = null;
+      setOtpStep('phone');
+      setOtpCode('');
+      setVerificationRequired(false);
       return;
     }
+    if (loadedActionsTokenRef.current === token) {
+      return;
+    }
+    loadedActionsTokenRef.current = token;
     loadAgenticActions();
   }, [token, loadAgenticActions]);
 
@@ -154,9 +181,10 @@ export default function HomePage() {
       return;
     }
     try {
-      setOtpStatus('Sending code...');
+      setOtpStatus(`Sending code to ${cleaned}...`);
       await apiClient.startPhoneOtp(cleaned);
-      setOtpStatus('Code sent to the email on file.');
+      setOtpStatus(`Code sent to ${cleaned}. Check the email on file.`);
+      setOtpStep('code');
     } catch (err) {
       setOtpStatus(err instanceof Error ? err.message : 'Failed to send code');
     }
@@ -173,6 +201,7 @@ export default function HomePage() {
       const data = await apiClient.confirmPhoneOtp(cleaned, otpCode.trim());
       setToken(data.token);
       setOtpStatus('Verified. Session active.');
+      setOtpStep('phone');
     } catch (err) {
       setOtpStatus(err instanceof Error ? err.message : 'Verification failed');
     }
@@ -243,8 +272,9 @@ export default function HomePage() {
           showWorking={showWorking}
           agenticPanel={
             <AgenticPanel
-              needsVerification={needsVerification}
+              needsVerification={verificationRequired}
               isVerified={Boolean(token)}
+              otpStep={otpStep}
               phone={phone}
               code={otpCode}
               status={otpStatus}
