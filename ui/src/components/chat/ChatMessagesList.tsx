@@ -12,14 +12,12 @@ import { ArrowDown, Sparkles } from 'lucide-react';
 import { ChatMessage } from './ChatMessage';
 import { AnimatedOrb } from '@/components/ui/AnimatedOrb';
 import type { Message } from '@/types/api';
-import type { ReactNode } from 'react';
 
 interface ChatMessagesListProps {
   messages: Message[];
   isLoading?: boolean;
   showWorking?: boolean;
   onRegenerate?: (messageId: string) => void;
-  inlinePanel?: ReactNode;
   className?: string;
 }
 
@@ -28,7 +26,6 @@ const ChatMessagesList = ({
   isLoading = false,
   showWorking = false,
   onRegenerate,
-  inlinePanel,
   className,
 }: ChatMessagesListProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -158,16 +155,6 @@ const ChatMessagesList = ({
               }
             />
           ))}
-
-          {inlinePanel && (
-            <ChatMessage
-              role="assistant"
-              content=""
-              className="pt-2"
-            >
-              {inlinePanel}
-            </ChatMessage>
-          )}
 
           {/* Scroll anchor */}
           <div ref={bottomRef} />

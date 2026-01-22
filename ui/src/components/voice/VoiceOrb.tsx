@@ -34,7 +34,7 @@ const VoiceOrb = memo(function VoiceOrb({
   className,
 }: VoiceOrbProps) {
   // Map VoiceOrbState to AnimatedOrb state
-  const orbState: OrbState = isMuted ? 'idle' : state;
+  const orbState: OrbState = isMuted ? 'idle' : state === 'working' ? 'thinking' : state;
 
   // Size mapping for the container
   const containerSizes = {
