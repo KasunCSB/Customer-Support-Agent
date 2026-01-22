@@ -16,9 +16,11 @@ import { VoiceOrb, VoiceOrbState } from '@/components/voice/VoiceOrb';
 import { VoiceTranscript } from '@/components/voice/VoiceTranscript';
 import { VoiceControls } from '@/components/voice/VoiceControls';
 import { VoiceErrorBoundary } from '@/components/voice/VoiceErrorBoundary';
+import { AgenticPanel } from '@/components/chat/AgenticPanel';
 import { v4 as uuidv4 } from 'uuid';
 import { getFriendlyError } from '@/lib/errors';
-import type { VoiceTranscript as VoiceTranscriptType, VoiceState } from '@/types/api';
+import { apiClient, APIClientError } from '@/lib/api-client';
+import type { VoiceTranscript as VoiceTranscriptType, VoiceState, QuickAction } from '@/types/api';
 import { useAuthSession } from '@/hooks/useAuthSession';
 
 // Inner component that contains the actual voice functionality
@@ -28,7 +30,15 @@ function VoicePageContent() {
   const [state, setState] = useState<VoiceState>('idle');
   const [transcripts, setTranscripts] = useState<VoiceTranscriptType[]>([]);
   const [isSupported, setIsSupported] = useState(false);
-  const { token } = useAuthSession();
+  const { token, setToken } = useAuthSession();
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [otpStep, setOtpStep] = useState<'phone' | 'code'>('phone');
+  const [phone, setPhone] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpStatus, setOtpStatus] = useState('');
+  const [agenticActions, setAgenticActions] = useState<QuickAction[]>([]);
+  const [loadingAgenticActions, setLoadingAgenticActions] = useState(false);
+  const loadedActionsTokenRef = useRef<string | null>(null);
 
   // Stable server-side conversation context for this voice session
   const chatSessionIdRef = useRef<string>(uuidv4());
@@ -178,6 +188,147 @@ function VoicePageContent() {
     setIsSupported(!!SpeechRecognition);
   }, []);
 
+  const extractDigitsFromSpeech = useCallback((text: string) => {
+    const lower = text.toLowerCase();
+    const wordMap: Record<string, string> = {
+      zero: '0',
+      oh: '0',
+      one: '1',
+      two: '2',
+      three: '3',
+      four: '4',
+      five: '5',
+      six: '6',
+      seven: '7',
+      eight: '8',
+      nine: '9',
+    };
+
+    const tokens = lower.split(/[\s\-]+/).filter(Boolean);
+    let wordDigits = '';
+    let wordHits = 0;
+    for (const token of tokens) {
+      if (wordMap[token]) {
+        wordDigits += wordMap[token];
+        wordHits += 1;
+      }
+    }
+
+    const numericDigits = lower.replace(/\D/g, '');
+    if (!numericDigits && wordHits >= 2) {
+      return wordDigits;
+    }
+    if (wordDigits.length > numericDigits.length && wordHits >= 2) {
+      return wordDigits;
+    }
+    return numericDigits;
+  }, []);
+
+  const parsePhoneFromSpeech = useCallback((text: string) => {
+    const digits = extractDigitsFromSpeech(text);
+    if (!digits) return null;
+    if (digits.length === 9) return `0${digits}`;
+    if (digits.length === 10 && digits.startsWith('0')) return digits;
+    if (digits.length === 11 && digits.startsWith('94')) return `+${digits}`;
+    if (digits.length === 12 && digits.startsWith('0094')) return `+94${digits.slice(4)}`;
+    return null;
+  }, [extractDigitsFromSpeech]);
+
+  const parseOtpFromSpeech = useCallback((text: string) => {
+    const match = text.match(/\b(\d{6})\b/);
+    if (match) return match[1];
+    const digits = extractDigitsFromSpeech(text);
+    if (digits.length === 6) return digits;
+    return null;
+  }, [extractDigitsFromSpeech]);
+
+  useEffect(() => {
+    if (!token) return;
+    setNeedsVerification(false);
+    setOtpStep('phone');
+    setOtpCode('');
+    setOtpStatus('');
+  }, [token]);
+
+  const loadAgenticActions = useCallback(async () => {
+    if (!token) return;
+    setLoadingAgenticActions(true);
+    try {
+      const data = await apiClient.getAgenticContext({ authToken: token });
+      setAgenticActions(data.quick_actions || []);
+    } catch (err) {
+      console.error('Failed to load quick actions:', err);
+      setAgenticActions([]);
+      if (err instanceof APIClientError && /unauthorized|invalid or expired session/i.test(err.message)) {
+        setToken(null);
+      }
+    } finally {
+      setLoadingAgenticActions(false);
+    }
+  }, [token, setToken]);
+
+  useEffect(() => {
+    if (!token) {
+      setAgenticActions([]);
+      loadedActionsTokenRef.current = null;
+      setNeedsVerification(false);
+      setOtpStep('phone');
+      setOtpCode('');
+      setOtpStatus('');
+      return;
+    }
+    if (loadedActionsTokenRef.current === token) {
+      return;
+    }
+    loadedActionsTokenRef.current = token;
+    loadAgenticActions();
+  }, [token, loadAgenticActions]);
+
+  const startOtp = useCallback(async (overridePhone?: string) => {
+    const rawPhone = overridePhone ?? phone;
+    const cleaned = rawPhone.replace(/[\s\-()]/g, '');
+    if (!/^\+?\d{9,15}$/.test(cleaned)) {
+      setOtpStatus('Enter a valid mobile number.');
+      return;
+    }
+    try {
+      if (overridePhone) {
+        setPhone(rawPhone);
+      }
+      setOtpStatus(`Sending code to ${cleaned}...`);
+      await apiClient.startPhoneOtp(cleaned);
+      setOtpStatus(`Code sent to ${cleaned}. Check the email on file.`);
+      setOtpStep('code');
+    } catch (err) {
+      setOtpStatus(err instanceof Error ? err.message : 'Failed to send code');
+    }
+  }, [phone]);
+
+  const confirmOtp = useCallback(async (overrideCode?: string) => {
+    const codeValue = (overrideCode ?? otpCode).trim();
+    if (!codeValue) {
+      setOtpStatus('Enter the verification code.');
+      return;
+    }
+    if (!phone) {
+      setOtpStatus('Enter your mobile number first.');
+      return;
+    }
+    try {
+      if (overrideCode) {
+        setOtpCode(codeValue);
+      }
+      setOtpStatus('Verifying...');
+      const cleaned = phone.replace(/[\s\-()]/g, '');
+      const data = await apiClient.confirmPhoneOtp(cleaned, codeValue);
+      setToken(data.token);
+      setOtpStatus('Verified. Session active.');
+      setNeedsVerification(false);
+    } catch (err) {
+      setOtpStatus(err instanceof Error ? err.message : 'Verification failed');
+    }
+  }, [otpCode, phone, setToken]);
+
   // Helper to add transcript
   const addTranscript = useCallback((role: 'user' | 'assistant', text: string, isFinal: boolean = true) => {
     setTranscripts(prev => {
@@ -199,6 +350,15 @@ function VoicePageContent() {
       }];
     });
   }, []);
+
+  const handleQuickAction = useCallback((action: QuickAction) => {
+    if (stateRef.current === 'idle') {
+      toast.error('Start voice chat to use quick actions.');
+      return;
+    }
+    addTranscript('user', action.message, true);
+    processUserInputRef.current?.(action.message);
+  }, [addTranscript]);
 
   // Check if text is similar to what we just spoke (to filter echo)
   const isSimilarToLastResponse = useCallback((text: string): boolean => {
@@ -764,6 +924,41 @@ function VoicePageContent() {
     // In continuous mode, state stays as 'listening'
 
     try {
+      const resumeAfterOtp = () => {
+        setState('listening');
+        if (currentMode === 'push-to-talk' && recognitionRef.current) {
+          suspendRecognitionRef.current = false;
+          ignoreRecognitionUntilRef.current = Date.now() + 900;
+          window.setTimeout(() => {
+            if (!stoppedRef.current && recognitionRef.current) {
+              try {
+                recognitionRef.current.start();
+              } catch {
+                // Ignore
+              }
+            }
+          }, 200);
+        }
+      };
+
+      if (!token && needsVerification) {
+        if (otpStep === 'phone') {
+          const detectedPhone = parsePhoneFromSpeech(text);
+          if (detectedPhone) {
+            await startOtp(detectedPhone);
+            resumeAfterOtp();
+            return;
+          }
+        } else {
+          const detectedCode = parseOtpFromSpeech(text);
+          if (detectedCode) {
+            await confirmOtp(detectedCode);
+            resumeAfterOtp();
+            return;
+          }
+        }
+      }
+
       // Abort any previous query
       try {
         queryAbortRef.current?.abort();
@@ -794,6 +989,16 @@ function VoicePageContent() {
       }
 
       const response = await resp.json();
+      const sessionValid = response.session_valid !== false;
+      if (!sessionValid) {
+        setToken(null);
+      }
+      const tokenActive = Boolean(token && sessionValid);
+      const nextNeedsVerification = Boolean(response.needs_verification) && !tokenActive;
+      setNeedsVerification(nextNeedsVerification);
+      if (nextNeedsVerification) {
+        setOtpStatus((prev) => prev || 'Account actions require verification. Enter your mobile number to continue.');
+      }
 
       if (stoppedRef.current || (stateRef.current as VoiceState) === 'idle') return;
 
@@ -880,7 +1085,7 @@ function VoicePageContent() {
       processingRef.current = false;
       setIsProcessing(false);
     }
-  }, [addTranscript, playTTS]);
+  }, [addTranscript, playTTS, token, setToken, needsVerification, otpStep, parsePhoneFromSpeech, parseOtpFromSpeech, startOtp, confirmOtp]);
   
   // Keep processUserInputRef in sync
   useEffect(() => {
@@ -1113,6 +1318,40 @@ function VoicePageContent() {
             </div>
           ) : null}
         </div>
+
+        {(needsVerification || token) && (
+          <div className="w-full max-w-3xl mt-6">
+            <div className="flex justify-center">
+              <div
+                className={cn(
+                  'w-full max-w-[680px]',
+                  'rounded-[32px]',
+                  'bg-white/70 dark:bg-neutral-900/70',
+                  'backdrop-blur-xl',
+                  'border border-white/30 dark:border-white/10',
+                  'shadow-2xl shadow-black/10 dark:shadow-black/30',
+                  'px-4 py-3 md:px-5 md:py-4'
+                )}
+              >
+                <AgenticPanel
+                  needsVerification={needsVerification}
+                  isVerified={Boolean(token)}
+                  otpStep={otpStep}
+                  phone={phone}
+                  code={otpCode}
+                  status={otpStatus}
+                  onPhoneChange={setPhone}
+                  onCodeChange={setOtpCode}
+                  onStartOtp={startOtp}
+                  onConfirmOtp={confirmOtp}
+                  quickActions={agenticActions}
+                  isLoadingActions={loadingAgenticActions}
+                  onQuickAction={handleQuickAction}
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Floating controls at bottom */}
