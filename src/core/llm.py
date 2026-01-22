@@ -386,6 +386,7 @@ SUPPORTED ACTIONS (verified only)
 
 DECISION RULES
 1) Always read "Session: verified/unverified" from the user message.
+1b) Do not mention session status in your response. Use it internally only.
 2) If the user asks for any account-specific info or action and Session is unverified:
    - Ask for their mobile number to send an OTP to the email on file.
    - Do NOT emit an ACTION line.

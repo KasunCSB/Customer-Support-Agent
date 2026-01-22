@@ -97,26 +97,36 @@ const AgenticPanel = ({
           <p className="text-sm text-neutral-600 dark:text-neutral-400">
             Account actions need verification. Enter your mobile number to receive a one-time code.
           </p>
-          <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+          <div className="grid gap-3 md:grid-cols-[1fr_auto] items-end">
             <Input
               value={phone}
               onChange={(e) => onPhoneChange(e.target.value)}
               placeholder="+94770011111"
               label="Mobile number"
             />
-            <Button onClick={onStartOtp} variant="primary">
+            <Button
+              onClick={onStartOtp}
+              variant="primary"
+              size="sm"
+              className="h-10 w-32 px-4 text-sm rounded-lg"
+            >
               {otpStep === 'code' ? 'Resend code' : 'Send code'}
             </Button>
           </div>
           {otpStep === 'code' && (
-            <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+            <div className="grid gap-3 md:grid-cols-[1fr_auto] items-end">
               <Input
                 value={code}
                 onChange={(e) => onCodeChange(e.target.value)}
                 placeholder="6-digit code"
                 label="Verification code"
               />
-              <Button onClick={onConfirmOtp} variant="secondary">
+              <Button
+                onClick={onConfirmOtp}
+                variant="secondary"
+                size="sm"
+                className="h-10 w-32 px-4 text-sm rounded-lg"
+              >
                 Verify
               </Button>
             </div>
