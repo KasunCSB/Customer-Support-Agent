@@ -1,347 +1,293 @@
-# Customer Support Agent 🤖
+<div align="center">
+  <svg width="160" height="160" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Animated orb logo">
+    <defs>
+      <radialGradient id="orb-base" cx="30%" cy="25%" r="70%">
+        <stop offset="0%" stop-color="#E879F9" />
+        <stop offset="35%" stop-color="#A855F7" />
+        <stop offset="60%" stop-color="#6366F1" />
+        <stop offset="85%" stop-color="#3B82F6" />
+        <stop offset="100%" stop-color="#06B6D4" />
+      </radialGradient>
+      <radialGradient id="orb-accent-1" cx="70%" cy="30%" r="55%">
+        <stop offset="0%" stop-color="#F0ABFC" stop-opacity="0.9" />
+        <stop offset="50%" stop-color="#C084FC" stop-opacity="0.5" />
+        <stop offset="100%" stop-color="#818CF8" stop-opacity="0" />
+      </radialGradient>
+      <radialGradient id="orb-accent-2" cx="25%" cy="70%" r="55%">
+        <stop offset="0%" stop-color="#67E8F9" stop-opacity="0.8" />
+        <stop offset="55%" stop-color="#22D3EE" stop-opacity="0.4" />
+        <stop offset="100%" stop-color="#2DD4BF" stop-opacity="0" />
+      </radialGradient>
+      <radialGradient id="orb-gloss" cx="32%" cy="18%" r="55%">
+        <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.5" />
+        <stop offset="40%" stop-color="#FFFFFF" stop-opacity="0.2" />
+        <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0" />
+      </radialGradient>
+      <radialGradient id="orb-depth" cx="50%" cy="50%" r="70%">
+        <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0" />
+        <stop offset="70%" stop-color="#FFFFFF" stop-opacity="0.08" />
+        <stop offset="100%" stop-color="#000000" stop-opacity="0.25" />
+      </radialGradient>
+      <filter id="orb-glow" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="12" />
+      </filter>
+    </defs>
+    <g>
+      <circle cx="100" cy="100" r="78" fill="url(#orb-base)" />
+      <circle cx="100" cy="100" r="78" fill="url(#orb-accent-1)" />
+      <circle cx="100" cy="100" r="78" fill="url(#orb-accent-2)" />
+      <circle cx="100" cy="100" r="78" fill="url(#orb-gloss)" />
+      <circle cx="100" cy="100" r="78" fill="url(#orb-depth)" />
+      <circle cx="100" cy="100" r="86" fill="none" stroke="#FFFFFF" stroke-opacity="0.2" />
+      <circle cx="100" cy="100" r="88" fill="none" stroke="#FFFFFF" stroke-opacity="0.08" />
+      <animateTransform attributeName="transform" type="rotate" from="0 100 100" to="360 100 100" dur="48s" repeatCount="indefinite" />
+    </g>
+    <g filter="url(#orb-glow)" opacity="0.6">
+      <circle cx="100" cy="100" r="92" fill="#A855F7">
+        <animate attributeName="opacity" values="0.35;0.65;0.35" dur="6s" repeatCount="indefinite" />
+      </circle>
+    </g>
+  </svg>
+  <h1>Customer Support Agent</h1>
+  <p><strong>LankaTel AI Support Assistant</strong></p>
+  <p>RAG-first support with voice, actions, and a modern UI.</p>
+  <p>
+    <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+" /></a>
+    <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License" /></a>
+    <a href="https://github.com/psf/black"><img src="https://img.shields.io/badge/code%20style-black-000000.svg" alt="Code style: black" /></a>
+  </p>
+</div>
 
-A RAG-based (Retrieval-Augmented Generation) AI customer support agent built with Azure OpenAI and ChromaDB.
+A RAG-based AI customer support agent built with Azure OpenAI and ChromaDB. It includes a FastAPI backend, a Next.js UI, and optional voice and admin workflows.
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+## Scenario
 
-## 🌟 Features
+LankaTel is a conceptual internet service provider in Sri Lanka. This project is its AI support product: a complete customer support stack with a RAG knowledge brain, action-ready backend, and a modern UI. It ships with realistic telecom knowledge, supports chat and voice, and can handle guided workflows like ticket creation or service changes. Use it as a drop-in reference only.
 
-- **RAG Pipeline**: Retrieval-augmented generation for accurate, grounded responses
-- **Azure OpenAI Integration**: Uses GPT-4o-mini for chat and text-embedding-3-large for embeddings
-- **ChromaDB Vector Store**: Local, persistent vector storage for development
-- **Token-Aware Chunking**: Smart document splitting with tiktoken
-- **CLI Interface**: Full-featured command-line interface for all operations
-- **Conversation Memory**: Multi-turn conversation support
-- **Source Citations**: Responses include references to source documents
-- **Extensible Architecture**: SOLID principles for easy customization
+## Features
 
-## 🏗️ Architecture
+- Retrieval-augmented generation with source citations
+- Azure OpenAI chat and embedding deployments
+- ChromaDB local vector store with persistence
+- Token-aware chunking with tiktoken
+- CLI for ingest, query, chat, voice, and realtime voice
+- FastAPI backend API for the UI and external clients
+- Next.js UI with chat, voice, tools, and admin console
+- Agentic actions (tickets, subscriptions, balance) backed by MySQL
+- Optional Azure Speech integration for STT/TTS
+- Single-container Docker image with nginx reverse proxy
+
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        CLI Interface                             │
-│                     (src/cli.py)                                 │
-└─────────────────────────────────────────────────────────────────┘
-                               │
-                               ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                       RAG Pipeline                               │
-│                  (src/pipeline/rag_pipeline.py)                  │
-│  ┌───────────────┐    ┌────────────────┐    ┌────────────────┐  │
-│  │   Retriever   │───▶│  Context Asm.  │───▶│   LLM Reader   │  │
-│  └───────────────┘    └────────────────┘    └────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-         │                                           │
-         ▼                                           ▼
-┌─────────────────────┐                 ┌─────────────────────────┐
-│   Vector Store      │                 │    Azure OpenAI         │
-│   (ChromaDB)        │                 │    (GPT-4o-mini)        │
-│ src/core/vectorstore│                 │    src/core/llm.py      │
-└─────────────────────┘                 └─────────────────────────┘
-         ▲
-         │
-┌─────────────────────┐
-│  Embedding Provider │
-│  (text-embedding-   │
-│   3-large)          │
-│ src/core/embeddings │
-└─────────────────────┘
+[Next.js UI] --> /api --> [FastAPI backend]
+                        |-> [RAG pipeline] -> [ChromaDB]
+                        |-> [Azure OpenAI]
+                        |-> [MySQL] (actions, sessions, admin)
+                        |-> [Azure Speech] (voice)
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 Customer-Support-Agent/
-├── .env.example          # Environment variables template
-├── .gitignore            # Git ignore rules
-├── README.md             # This file
-├── requirements.txt      # Python dependencies
-├── pyproject.toml        # Project configuration
-├── data/
-│   ├── raw/              # Original documents
-│   ├── processed/        # Processed data
-│   └── samples/          # Sample datasets
-│       └── sample_faq.jsonl
-├── docs/
-│   ├── ARCHITECTURE.md   # Detailed architecture docs
-│   └── CONTRIBUTING.md   # Contribution guidelines
-├── src/
-│   ├── __init__.py
-│   ├── cli.py            # Command-line interface
-│   ├── config.py         # Configuration management
-│   ├── ingestion.py      # Document ingestion
-│   ├── logger.py         # Logging setup
-│   ├── core/
-│   │   ├── __init__.py
-│   │   ├── embeddings.py # Embedding providers
-│   │   ├── llm.py        # LLM providers
-│   │   └── vectorstore.py # Vector store implementations
-│   └── pipeline/
-│       ├── __init__.py
-│       ├── chunker.py    # Text chunking
-│       ├── retriever.py  # Document retrieval
-│       └── rag_pipeline.py # RAG orchestration
-├── tests/
-│   ├── __init__.py
-│   ├── conftest.py       # Pytest fixtures
-│   ├── test_chunker.py
-│   ├── test_config.py
-│   └── test_vectorstore.py
-└── vectorstore/          # ChromaDB persistence (gitignored)
+  api_server.py              # FastAPI backend
+  src/                       # Core pipeline, services, realtime voice
+  ui/                        # Next.js frontend
+  data/
+    raw/                     # Raw JSONL knowledge files
+    processed/               # Generated KB (gitignored)
+  db/                        # MySQL schema + seed data
+  docker/                    # Nginx + container entrypoint
+  scripts/                   # Utilities (KB build, quota check)
+  tests/                     # Pytest suite
+  vectorstore/               # ChromaDB persistence (gitignored)
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
-- Python 3.10 or higher
-- Azure OpenAI resource with deployments:
+- Python 3.10+
+- Node.js 18+ (for the UI)
+- Azure OpenAI deployments:
   - `chat-model` (GPT-4o-mini)
   - `embedding-model` (text-embedding-3-large)
+- Optional: MySQL 8.x for actions/admin data
+- Optional: Azure Speech for voice features
 
 ### Installation
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/customer-support-agent.git
-   cd customer-support-agent
-   ```
-
-2. **Create virtual environment**
+1. Create a virtual environment
    ```bash
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
-3. **Install dependencies**
+2. Install dependencies
    ```bash
    pip install -r requirements.txt
    ```
 
-4. **Configure environment**
+3. Configure environment
    ```bash
    cp .env.example .env
    # Edit .env with your Azure OpenAI credentials
    ```
 
-5. **Test configuration**
+4. (Optional) Initialize MySQL data
+   ```bash
+   mysql -u root -p < db/mysql_schema.sql
+   ```
+
+5. Test configuration
    ```bash
    python -m src.cli test
    ```
 
 ### Basic Usage
 
-1. **Ingest documents**
+1. Ingest documents
    ```bash
-   # Ingest sample FAQ data
-   python -m src.cli ingest data/samples/sample_faq.jsonl
-   
+   # Ingest the bundled Lankatel data (auto-builds a processed KB)
+   python -m src.cli ingest data/raw/lankatel
+
    # Ingest a directory of documents
    python -m src.cli ingest data/documents/ --recursive
    ```
 
-2. **Ask questions**
+2. Ask questions
    ```bash
    python -m src.cli query "How do I reset my password?"
-   
-   # With streaming output
-   python -m src.cli query "What's your return policy?" --stream
+   python -m src.cli query "What is my plan balance?" --stream
    ```
 
-3. **Interactive chat**
+3. Interactive chat
    ```bash
    python -m src.cli chat
-   
-   # Commands in chat mode:
-   # /clear  - Clear conversation history
-   # /stats  - Show statistics
-   # /quit   - Exit chat
    ```
 
-4. **View statistics**
+4. Voice modes (optional)
    ```bash
-   python -m src.cli stats
+   python -m src.cli voice-chat
+   python -m src.cli realtime
    ```
 
-## 📖 CLI Reference
+## Run the API Server and UI
 
-### Commands
+1. Start the backend
+   ```bash
+   python api_server.py
+   ```
+
+2. Start the UI
+   ```bash
+   cd ui
+   cp .env.example .env.local
+   npm install
+   npm run dev
+   ```
+
+The UI will be available at `http://localhost:3000` and the backend at `http://localhost:8000`.
+
+## CLI Reference
 
 | Command | Description |
 |---------|-------------|
 | `ingest <path>` | Ingest documents from file or directory |
 | `query <question>` | Ask a single question |
 | `chat` | Start interactive chat session |
+| `voice-chat` | Start turn-based voice chat |
+| `realtime` | Start realtime full-duplex voice chat |
 | `stats` | Show system statistics |
 | `test` | Test system configuration |
 | `clear` | Clear the vector store |
 
-### Options
+## Data Formats
 
-```bash
-# Global options
---verbose, -v     Enable verbose output
-
-# Ingest options
---recursive, -r   Process directories recursively (default: True)
-
-# Query options
---top-k, -k       Number of documents to retrieve (default: 5)
---stream, -s      Stream the response
---show-sources    Show source documents
-
-# Chat options
---stream, -s      Stream responses
-
-# Clear options
---force, -f       Skip confirmation prompt
-```
-
-## ⚙️ Configuration
-
-All configuration is done through environment variables. See `.env.example` for all options:
-
-```bash
-# Azure OpenAI
-AZURE_OPENAI_API_KEY=your_api_key
-AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
-AZURE_OPENAI_CHAT_DEPLOYMENT=chat-model
-AZURE_OPENAI_EMBEDDING_DEPLOYMENT=embedding-model
-
-# Chunking
-CHUNK_SIZE_TOKENS=1000
-CHUNK_OVERLAP_TOKENS=200
-
-# Retrieval
-RETRIEVAL_TOP_K=5
-CONTEXT_TOKEN_BUDGET=3000
-
-# LLM
-LLM_TEMPERATURE=0.1
-LLM_MAX_TOKENS=512
-```
-
-## 🧪 Testing
-
-Run tests with pytest:
-
-```bash
-# Run all tests
-pytest tests/ -v
-
-# Run with coverage
-pytest tests/ -v --cov=src --cov-report=html
-
-# Run specific test file
-pytest tests/test_chunker.py -v
-```
-
-## 🔧 Development
-
-### Code Style
-
-This project uses:
-- **Black** for code formatting
-- **isort** for import sorting
-- **Pylint** for linting
-- **mypy** for type checking
-
-```bash
-# Format code
-black src/ tests/
-isort src/ tests/
-
-# Check types
-mypy src/
-```
-
-### Adding New Features
-
-The codebase follows SOLID principles:
-
-- **Single Responsibility**: Each module has one purpose
-- **Open/Closed**: Use interfaces for extension
-- **Liskov Substitution**: Implementations are interchangeable
-- **Interface Segregation**: Small, focused interfaces
-- **Dependency Inversion**: Depend on abstractions
-
-To add a new embedding provider:
-
-```python
-from src.core.embeddings import EmbeddingProvider
-
-class MyEmbeddingProvider(EmbeddingProvider):
-    @property
-    def dimension(self) -> int:
-        return 768
-    
-    def embed(self, text: str) -> List[float]:
-        # Your implementation
-        pass
-    
-    def embed_batch(self, texts: List[str]) -> List[List[float]]:
-        # Your implementation
-        pass
-```
-
-## 📊 Data Formats
-
-### Supported Input Formats
+Supported input formats:
 
 | Format | Extension | Description |
 |--------|-----------|-------------|
 | Text | `.txt` | Plain text files |
 | Markdown | `.md` | Markdown documents |
-| JSON | `.json` | JSON with `text`/`content` field |
+| JSON | `.json` | JSON with `text` or `content` field |
 | JSON Lines | `.jsonl` | One JSON object per line |
 
-### JSONL Format Example
+JSONL example:
 
 ```json
 {"id": "faq_001", "question": "How do I reset my password?", "answer": "Click 'Forgot Password'...", "category": "account"}
 {"id": "faq_002", "question": "What payment methods?", "answer": "We accept Visa, MasterCard...", "category": "billing"}
 ```
 
-## 🛣️ Roadmap
+To normalize the bundled Lankatel data manually:
 
-- [ ] **Phase 1**: Basic RAG chatbot (current)
-- [ ] **Phase 2**: Agent with function calling
-- [ ] **Phase 3**: Voice interface integration
-- [ ] **Phase 4**: Web UI with Streamlit/Gradio
-- [ ] **Phase 5**: Production deployment
+```bash
+python scripts/build_processed_kb.py
+```
 
-## 🤝 Contributing
+## Configuration
 
-Contributions are welcome! Please see [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
+All configuration is done via environment variables. See `.env.example` and `ui/.env.example` for the full list. Common settings:
 
-## 📄 License
+```bash
+# Azure OpenAI
+AZURE_OPENAI_API_KEY=...
+AZURE_OPENAI_ENDPOINT=...
+AZURE_OPENAI_CHAT_DEPLOYMENT=chat-model
+AZURE_OPENAI_EMBEDDING_DEPLOYMENT=embedding-model
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+# Vector store
+VECTORSTORE_DIR=./vectorstore
+VECTORSTORE_COLLECTION=support_docs
 
-## 🙏 Acknowledgments
+# Optional services
+DB_URL=mysql+pymysql://user:password@localhost/ltagent
+AZURE_SPEECH_API_KEY=...
+AZURE_SPEECH_REGION=eastus
 
-- [LangChain](https://github.com/langchain-ai/langchain) for RAG patterns
-- [ChromaDB](https://github.com/chroma-core/chroma) for vector storage
-- [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service) for LLM and embeddings
+# Admin console
+ADMIN_USERNAME=ltadmin
+ADMIN_PASSWORD=change_me_strong
+ADMIN_SECRET=change_me_secret
+```
 
-## 🐳 Docker (Single-container frontend + backend)
+## Testing
+
+```bash
+pytest tests/ -v
+```
+
+## Docker (Single-container frontend + backend)
 
 This repository includes a `Dockerfile` that builds the Next.js UI and packages the Python backend into a single container. Nginx is used inside the container to reverse-proxy:
 
-- Requests under `/api/` -> forwarded to the Python backend (uvicorn) on port `8000`
-- All other requests -> forwarded to the Next.js server on port `3000`
+- Requests under `/api/` are forwarded to the Python backend (uvicorn) on port `8000`
+- All other requests are forwarded to the Next.js server on port `3000`
 
 Build and run locally:
 
 ```bash
-# From repository root
 docker build -t customer-support-agent:latest .
 docker run -p 80:80 customer-support-agent:latest
 ```
 
 Notes on Azure deployment:
+
 - Push the image to a container registry (ACR or Docker Hub) and point your Azure Web App for Containers or Azure Container Instance to the image.
 - Azure expects a single HTTP port (80) to be served by the container; the image exposes port 80 and uses nginx as the entrypoint.
 
+## Contributing
+
+Contributions are welcome. Please open a PR with a clear description of the change.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+
+## Acknowledgments
+
+- LangChain for RAG patterns
+- ChromaDB for vector storage
+- Azure OpenAI for LLMs and embeddings
