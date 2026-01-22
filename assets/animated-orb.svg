@@ -1,0 +1,48 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Animated orb logo">
+  <defs>
+    <radialGradient id="orb-base" cx="30%" cy="25%" r="70%">
+      <stop offset="0%" stop-color="#E879F9" />
+      <stop offset="35%" stop-color="#A855F7" />
+      <stop offset="60%" stop-color="#6366F1" />
+      <stop offset="85%" stop-color="#3B82F6" />
+      <stop offset="100%" stop-color="#06B6D4" />
+    </radialGradient>
+    <radialGradient id="orb-accent-1" cx="70%" cy="30%" r="55%">
+      <stop offset="0%" stop-color="#F0ABFC" stop-opacity="0.9" />
+      <stop offset="50%" stop-color="#C084FC" stop-opacity="0.5" />
+      <stop offset="100%" stop-color="#818CF8" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="orb-accent-2" cx="25%" cy="70%" r="55%">
+      <stop offset="0%" stop-color="#67E8F9" stop-opacity="0.8" />
+      <stop offset="55%" stop-color="#22D3EE" stop-opacity="0.4" />
+      <stop offset="100%" stop-color="#2DD4BF" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="orb-gloss" cx="32%" cy="18%" r="55%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.5" />
+      <stop offset="40%" stop-color="#FFFFFF" stop-opacity="0.2" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="orb-depth" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0" />
+      <stop offset="70%" stop-color="#FFFFFF" stop-opacity="0.08" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.25" />
+    </radialGradient>
+    <filter id="orb-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="12" />
+    </filter>
+  </defs>
+  <g>
+    <circle cx="100" cy="100" r="78" fill="url(#orb-base)" />
+    <circle cx="100" cy="100" r="78" fill="url(#orb-accent-1)" />
+    <circle cx="100" cy="100" r="78" fill="url(#orb-accent-2)" />
+    <circle cx="100" cy="100" r="78" fill="url(#orb-gloss)" />
+    <circle cx="100" cy="100" r="78" fill="url(#orb-depth)" />
+    <circle cx="100" cy="100" r="86" fill="none" stroke="#FFFFFF" stroke-opacity="0.2" />
+    <circle cx="100" cy="100" r="88" fill="none" stroke="#FFFFFF" stroke-opacity="0.08" />
+  </g>
+  <g filter="url(#orb-glow)" opacity="0.6">
+    <circle cx="100" cy="100" r="92" fill="#A855F7">
+      <animate attributeName="opacity" values="0.35;0.65;0.35" dur="6s" repeatCount="indefinite" />
+    </circle>
+  </g>
+</svg>
