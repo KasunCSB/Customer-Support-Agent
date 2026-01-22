@@ -67,22 +67,25 @@ function stripGreetingPrefix(input: string): string {
 function buildTimeAwareWelcome(input: string): string {
   const normalized = normalizeWelcomeText(input);
   const cleaned = stripGreetingPrefix(normalized);
-  const greeting = `${getTimeGreeting()}!`;
+  const fallback = DEFAULT_WELCOMES[Math.floor(Math.random() * DEFAULT_WELCOMES.length)];
+  const message = cleaned || fallback;
+  const useTimeGreeting = Math.random() < 0.5;
+  const greeting = useTimeGreeting ? `${getTimeGreeting()}!` : null;
 
-  if (!cleaned) return greeting;
+  if (!greeting) return message;
 
-  const combined = `${greeting} ${cleaned}`;
+  const combined = `${greeting} ${message}`;
   if (combined.length <= MAX_WELCOME_LEN) return combined;
 
   const available = MAX_WELCOME_LEN - greeting.length - 1;
   if (available <= 0) return greeting;
 
-  let trimmed = cleaned.slice(0, available).trim();
+  let trimmed = message.slice(0, available).trim();
   const lastSpace = trimmed.lastIndexOf(' ');
   if (lastSpace > Math.max(18, Math.floor(available * 0.6))) {
     trimmed = trimmed.slice(0, lastSpace).trim();
   }
-  if (trimmed.length < cleaned.length) {
+  if (trimmed.length < message.length) {
     trimmed = `${trimmed}...`;
   }
 
