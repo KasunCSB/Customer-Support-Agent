@@ -35,7 +35,7 @@ interface UseChatReturn {
 }
 
 export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
-  const { token } = useAuthSession();
+  const { token, setToken } = useAuthSession();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showWorking, setShowWorking] = useState(false);
@@ -194,6 +194,9 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
         const response = await apiClient.chat(content, effectiveSessionId, {
           authToken: token || undefined,
         });
+        if (token && response.session_valid === false) {
+          setToken(null);
+        }
         setNeedsVerification(Boolean(response.needs_verification));
 
         // Finalize assistant message
@@ -251,7 +254,7 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
         }
       }
     },
-    [sessionId, isLoading, onError, token]
+    [sessionId, isLoading, onError, token, setToken]
   );
 
   // Regenerate a message (re-query without duplicating user message)
@@ -306,6 +309,9 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
         const response = await apiClient.chat(userMessage.content, effectiveSessionId, {
           authToken: token || undefined,
         });
+        if (token && response.session_valid === false) {
+          setToken(null);
+        }
         setNeedsVerification(Boolean(response.needs_verification));
 
         // Finalize assistant message
@@ -347,7 +353,7 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
         setShowWorking(false);
       }
     },
-    [messages, sessionId, onError, token]
+    [messages, sessionId, onError, token, setToken]
   );
 
   // Clear error
@@ -372,3 +378,4 @@ export function useChat({ sessionId, onError }: UseChatOptions): UseChatReturn {
     clearMessages,
   };
 }
+

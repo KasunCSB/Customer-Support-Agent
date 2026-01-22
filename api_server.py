@@ -533,10 +533,12 @@ async def chat(request: ChatRequest, http_request: Request):
         pipe = get_pipeline()
         # Optional bearer session
         session = None
+        session_valid: Optional[bool] = None
         auth_header = http_request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header.split(" ", 1)[1].strip()
             session = auth_service.validate_session(token)
+            session_valid = bool(session)
         needs_verification = (session is None) and _detect_agentic_intent(request.message)
         
         if request.stream:
@@ -741,6 +743,7 @@ async def chat(request: ChatRequest, http_request: Request):
                 "session_id": request.session_id,
                 "needs_verification": needs_verification,
                 "agentic": bool(action_data) or needs_verification,
+                "session_valid": session_valid,
             }
             if action_data:
                 response_payload["action"] = action_data

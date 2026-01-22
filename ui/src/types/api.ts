@@ -83,6 +83,7 @@ export const QueryResponseSchema = z.object({
   query: z.string().optional().nullable(),
   agentic: z.boolean().optional(),
   needs_verification: z.boolean().optional(),
+  session_valid: z.boolean().optional().nullable(),
   sources: z.array(
     z.object({
       source: z.string(),

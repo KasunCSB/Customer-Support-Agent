@@ -4,6 +4,7 @@ Action service: create tickets and manage subscriptions.
 
 from __future__ import annotations
 
+import json
 import secrets
 from typing import Optional
 
@@ -15,6 +16,8 @@ logger = get_logger(__name__)
 
 def _write_audit(actor_id: str, actor_role: str, action: str, target_type: Optional[str], target_id: Optional[str], request_payload: dict, response_payload: dict, severity: str = "info") -> None:
     """Record an audit log entry."""
+    request_payload = _to_json(request_payload)
+    response_payload = _to_json(response_payload)
     db.execute(
         """
         INSERT INTO audit_logs (id, actor_id, actor_role, action, target_type, target_id, request, response, severity, created_at)
@@ -42,6 +45,10 @@ def _coerce_json(value: object) -> object:
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
     return str(value)
+
+
+def _to_json(value: object) -> str:
+    return json.dumps(_coerce_json(value), ensure_ascii=True)
 
 
 class ActionService:
@@ -80,8 +87,8 @@ class ActionService:
         )
 
     def _record_action(self, *, user_id: str, action_name: str, params: dict, result: dict) -> None:
-        params = _coerce_json(params)
-        result = _coerce_json(result)
+        params = _to_json(params)
+        result = _to_json(result)
         action_id = secrets.token_hex(16)
         db.execute(
             """
@@ -233,6 +240,8 @@ class ActionService:
 
         # Persist action record for idempotency/audit
         action_id = secrets.token_hex(16)
+        action_params = _to_json({"subject": subject, "description": description, "priority": priority})
+        action_result = _to_json({"ticket_id": external_id, "status": "open"})
         db.execute(
             """
             INSERT INTO actions (id, idempotency_key, session_id, user_id, action_name, status, requires_confirmation, params, result, created_at, completed_at)
@@ -242,8 +251,8 @@ class ActionService:
                 "id": action_id,
                 "idem": idempotency_key or f"auto-{action_id}",
                 "user_id": user["id"],
-                "params": {"subject": subject, "description": description, "priority": priority},
-                "result": {"ticket_id": external_id, "status": "open"},
+                "params": action_params,
+                "result": action_result,
             },
         )
 
@@ -305,6 +314,8 @@ class ActionService:
         )
 
         action_id = secrets.token_hex(16)
+        action_params = _to_json({"service_code": service_code})
+        action_result = _to_json({"status": "activated", "service_code": service_code})
         db.execute(
             """
             INSERT INTO actions (id, idempotency_key, session_id, user_id, action_name, status, requires_confirmation, params, result, created_at, completed_at)
@@ -314,8 +325,8 @@ class ActionService:
                 "id": action_id,
                 "idem": idempotency_key or f"auto-{action_id}",
                 "user_id": user["id"],
-                "params": {"service_code": service_code},
-                "result": {"status": "activated", "service_code": service_code},
+                "params": action_params,
+                "result": action_result,
             },
         )
 
@@ -366,6 +377,8 @@ class ActionService:
         )
 
         action_id = secrets.token_hex(16)
+        action_params = _to_json({"service_code": service_code})
+        action_result = _to_json({"status": "cancelled", "service_code": service_code})
         db.execute(
             """
             INSERT INTO actions (id, idempotency_key, session_id, user_id, action_name, status, requires_confirmation, params, result, created_at, completed_at)
@@ -375,8 +388,8 @@ class ActionService:
                 "id": action_id,
                 "idem": idempotency_key or f"auto-{action_id}",
                 "user_id": user["id"],
-                "params": {"service_code": service_code},
-                "result": {"status": "cancelled", "service_code": service_code},
+                "params": action_params,
+                "result": action_result,
             },
         )
 

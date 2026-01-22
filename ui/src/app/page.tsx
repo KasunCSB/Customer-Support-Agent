@@ -71,10 +71,8 @@ export default function HomePage() {
   });
 
   useEffect(() => {
-    if (needsVerification) {
-      setVerificationRequired(true);
-    }
-  }, [needsVerification]);
+    setVerificationRequired(Boolean(needsVerification) && !token);
+  }, [needsVerification, token]);
 
   useEffect(() => {
     setVerificationRequired(false);
