@@ -29,6 +29,36 @@ LankaTel is a conceptual internet service provider in Sri Lanka. This project is
 - Optional Azure Speech integration for STT/TTS
 - Single-container Docker image with nginx reverse proxy
 
+## Tech Stack
+
+### AI & RAG
+- Azure OpenAI (GPT-4o-mini, text-embedding-3-large)
+- ChromaDB vector store
+- tiktoken for chunking
+
+### Backend
+- Python 3.10+, FastAPI, Uvicorn
+- Pydantic v2 for validation
+- SQLAlchemy + PyMySQL for DB access
+
+### Frontend
+- Next.js 16, React 19, TypeScript
+- Tailwind CSS, PostCSS
+
+### Data & Storage
+- MySQL 8.x (actions, sessions, admin data)
+
+### Voice
+- Azure Speech Services (STT/TTS)
+
+### Email & Security
+- Zoho Mail SMTP for OTP/notifications
+- Cloudflare as DNS provider and security layer
+
+### Dev & Ops
+- Docker + nginx (single-container)
+- pytest, ESLint, Prettier
+
 ## Architecture
 
 ```
@@ -199,11 +229,22 @@ DB_URL=mysql+pymysql://user:password@localhost/ltagent
 AZURE_SPEECH_API_KEY=...
 AZURE_SPEECH_REGION=eastus
 
+# Email (Zoho SMTP)
+EMAIL_ENABLED=true
+EMAIL_SMTP_HOST=smtp.zoho.com
+EMAIL_SMTP_PORT=587
+EMAIL_SMTP_USERNAME=...
+EMAIL_SMTP_PASSWORD=...
+EMAIL_SENDER=...
+EMAIL_USE_TLS=true
+
 # Admin console
 ADMIN_USERNAME=ltadmin
 ADMIN_PASSWORD=change_me_strong
 ADMIN_SECRET=change_me_secret
 ```
+
+Cloudflare is used at the DNS and security layer during deployment; no app-level configuration is required.
 
 ## Testing
 

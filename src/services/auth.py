@@ -40,7 +40,7 @@ class AuthService:
     def _get_user_by_phone(self, phone: str) -> Optional[dict]:
         return db.fetch_one(
             """
-            SELECT * FROM users WHERE phone_e164 = :phone AND status = 'active'
+            SELECT * FROM users WHERE phone_local = :phone AND status = 'active'
             """,
             {"phone": phone},
         )
@@ -153,7 +153,7 @@ class AuthService:
                 "role": user["role"],
                 "email": user["email"],
                 "display_name": user["display_name"],
-                "phone_e164": user.get("phone_e164"),
+                "phone_local": user.get("phone_local"),
             },
         }
 
@@ -190,7 +190,7 @@ class AuthService:
         token_hash = _hash_value(token)
         session = db.fetch_one(
             """
-            SELECT s.*, u.role, u.email, u.display_name, u.phone_e164
+            SELECT s.*, u.role, u.email, u.display_name, u.phone_local
             FROM sessions s
             JOIN users u ON u.id = s.user_id
             WHERE s.token_hash = :token_hash

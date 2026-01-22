@@ -160,9 +160,13 @@ const ChatMessagesList = ({
           ))}
 
           {inlinePanel && (
-            <div className="pt-2">
+            <ChatMessage
+              role="assistant"
+              content=""
+              className="pt-2"
+            >
               {inlinePanel}
-            </div>
+            </ChatMessage>
           )}
 
           {/* Scroll anchor */}

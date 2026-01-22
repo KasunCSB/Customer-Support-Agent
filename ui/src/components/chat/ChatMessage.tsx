@@ -7,7 +7,7 @@
 
 'use client';
 
-import { memo, useState } from 'react';
+import { memo, useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
@@ -17,6 +17,7 @@ import { Badge } from '@/components/ui/Badge';
 interface ChatMessageProps {
   role: 'user' | 'assistant';
   content: string;
+  children?: ReactNode;
   timestamp?: string;
   isStreaming?: boolean;
   isLast?: boolean;
@@ -49,6 +50,7 @@ const TypingIndicator = () => (
 const ChatMessage = memo(function ChatMessage({
   role,
   content,
+  children,
   timestamp,
   isStreaming = false,
   isLast: _isLast = false,
@@ -61,6 +63,10 @@ const ChatMessage = memo(function ChatMessage({
   const [showSources, setShowSources] = useState(false);
 
   const isUser = role === 'user';
+  const hasCustomContent = Boolean(children);
+  const hasTextContent = Boolean(content);
+  const showActions = !isUser && !isStreaming && !hasCustomContent && hasTextContent;
+  const showMetadata = Boolean(timestamp) || showActions;
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(content);
@@ -124,7 +130,11 @@ const ChatMessage = memo(function ChatMessage({
           )}
         >
           {/* Markdown content or typing indicator */}
-          {isStreaming && !content ? (
+          {hasCustomContent ? (
+            <div className="w-full">
+              {children}
+            </div>
+          ) : isStreaming && !content ? (
             <TypingIndicator />
           ) : (
             <div
@@ -198,55 +208,57 @@ const ChatMessage = memo(function ChatMessage({
         )}
 
         {/* Metadata and actions */}
-        <div
-          className={cn(
-            'flex items-center gap-2 mt-2 text-xs text-neutral-400',
-            isUser ? 'flex-row-reverse' : 'flex-row'
-          )}
-        >
-          {timestamp && (
-            <time dateTime={timestamp} className="opacity-60">
-              {new Date(timestamp).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </time>
-          )}
+        {showMetadata && (
+          <div
+            className={cn(
+              'flex items-center gap-2 mt-2 text-xs text-neutral-400',
+              isUser ? 'flex-row-reverse' : 'flex-row'
+            )}
+          >
+            {timestamp && (
+              <time dateTime={timestamp} className="opacity-60">
+                {new Date(timestamp).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </time>
+            )}
 
-          {/* Actions - only show on hover for assistant messages */}
-          {!isUser && !isStreaming && (
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-              <button
-                onClick={handleCopy}
-                className={cn(
-                  'p-1.5 rounded-lg',
-                  'hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50',
-                  'transition-colors duration-200'
-                )}
-                aria-label={copied ? 'Copied' : 'Copy message'}
-              >
-                {copied ? (
-                  <Check className="w-3.5 h-3.5 text-green-500" />
-                ) : (
-                  <Copy className="w-3.5 h-3.5" />
-                )}
-              </button>
-              {onRegenerate && (
+            {/* Actions - only show on hover for assistant messages */}
+            {showActions && (
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                 <button
-                  onClick={onRegenerate}
+                  onClick={handleCopy}
                   className={cn(
                     'p-1.5 rounded-lg',
                     'hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50',
                     'transition-colors duration-200'
                   )}
-                  aria-label="Retry"
+                  aria-label={copied ? 'Copied' : 'Copy message'}
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
+                  {copied ? (
+                    <Check className="w-3.5 h-3.5 text-green-500" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5" />
+                  )}
                 </button>
-              )}
-            </div>
-          )}
-        </div>
+                {onRegenerate && (
+                  <button
+                    onClick={onRegenerate}
+                    className={cn(
+                      'p-1.5 rounded-lg',
+                      'hover:bg-neutral-100/50 dark:hover:bg-neutral-800/50',
+                      'transition-colors duration-200'
+                    )}
+                    aria-label="Retry"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

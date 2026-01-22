@@ -142,7 +142,7 @@ email_client = EmailClient()
 
 # Admin table config (allowed columns for updates)
 ADMIN_TABLES = {
-    "users": {"display_name", "role", "status", "preferred_channel", "metadata", "external_id", "phone_e164", "email"},
+    "users": {"display_name", "role", "status", "preferred_channel", "metadata", "external_id", "phone_local", "email"},
     "services": {"name", "description", "category", "price", "currency", "validity_days", "metadata", "code"},
     "subscriptions": {"status", "activated_at", "expires_at", "external_ref", "metadata"},
     "tickets": {"subject", "description", "priority", "status", "assigned_to", "metadata", "closed_at"},
@@ -432,7 +432,7 @@ def _format_action_result(action_name: str, action_result: object) -> str:
             "Connection details:\n"
             f"- Status: {action_result.get('status', 'N/A')}\n"
             f"- Valid until: {_format_datetime(action_result.get('connection_valid_until'))}\n"
-            f"- Phone: {action_result.get('phone_e164', 'N/A')}\n"
+            f"- Phone: {action_result.get('phone_local', 'N/A')}\n"
             f"- Email: {action_result.get('email', 'N/A')}"
         )
 
@@ -514,15 +514,19 @@ def _detect_agentic_intent(text: str) -> bool:
     return any(pattern.search(text) for pattern in _AGENTIC_PATTERNS)
 
 
-_PHONE_RE = re.compile(r"^\+?\d{9,15}$")
+_PHONE_LOCAL_RE = re.compile(r"^0\d{9}$")
 
 
 def _normalize_phone(phone: str) -> str:
     cleaned = re.sub(r"[\s\-()]", "", phone)
-    if not _PHONE_RE.match(cleaned):
+    if cleaned.startswith("+94"):
+        cleaned = f"0{cleaned[3:]}"
+    elif cleaned.startswith("94") and len(cleaned) == 11:
+        cleaned = f"0{cleaned[2:]}"
+    elif len(cleaned) == 9 and cleaned.isdigit():
+        cleaned = f"0{cleaned}"
+    if not _PHONE_LOCAL_RE.match(cleaned):
         raise ValueError("Invalid phone number format")
-    if not cleaned.startswith("+"):
-        cleaned = f"+{cleaned}"
     return cleaned
 
 
@@ -649,7 +653,7 @@ async def chat(request: ChatRequest, http_request: Request):
                 else:
                     try:
                         user_email = params.get("email") or session.get("email")
-                        user_phone = params.get("phone") or session.get("phone_e164")
+                        user_phone = params.get("phone") or session.get("phone_local")
                         if action_name == "create_ticket":
                             action_result = action_service.create_ticket(
                                 actor_id=session["user_id"],
@@ -1016,7 +1020,7 @@ async def create_ticket(request: CreateTicketRequest, http_request: Request):
     session = _require_session(http_request)
     try:
         user_email = request.email or session.get("email")
-        user_phone = request.phone or session.get("phone_e164")
+        user_phone = request.phone or session.get("phone_local")
         result = action_service.create_ticket(
             actor_id=session["user_id"],
             actor_role=session["role"],
@@ -1039,7 +1043,7 @@ async def activate_service(request: ServiceChangeRequest, http_request: Request)
     session = _require_session(http_request)
     try:
         user_email = request.email or session.get("email")
-        user_phone = request.phone or session.get("phone_e164")
+        user_phone = request.phone or session.get("phone_local")
         result = action_service.activate_service(
             actor_id=session["user_id"],
             actor_role=session["role"],
@@ -1060,7 +1064,7 @@ async def deactivate_service(request: ServiceChangeRequest, http_request: Reques
     session = _require_session(http_request)
     try:
         user_email = request.email or session.get("email")
-        user_phone = request.phone or session.get("phone_e164")
+        user_phone = request.phone or session.get("phone_local")
         result = action_service.deactivate_service(
             actor_id=session["user_id"],
             actor_role=session["role"],
@@ -1081,7 +1085,7 @@ async def list_subscriptions(http_request: Request, email: Optional[EmailStr] = 
     session = _require_session(http_request)
     try:
         user_email = email or session.get("email")
-        user_phone = phone or session.get("phone_e164")
+        user_phone = phone or session.get("phone_local")
         items = action_service.list_subscriptions(user_email=user_email, user_phone=user_phone)
         return {"subscriptions": items}
     except Exception as e:
@@ -1100,7 +1104,7 @@ async def list_tickets(
     session = _require_session(http_request)
     try:
         user_email = email or session.get("email")
-        user_phone = phone or session.get("phone_e164")
+        user_phone = phone or session.get("phone_local")
         items = action_service.list_tickets(
             user_email=user_email,
             user_phone=user_phone,
@@ -1208,7 +1212,7 @@ async def agentic_quick_actions(http_request: Request):
                 "id": session.get("user_id"),
                 "display_name": session.get("display_name"),
                 "email": session.get("email"),
-                "phone_e164": session.get("phone_e164"),
+                "phone_local": session.get("phone_local"),
             },
             "quick_actions": quick_actions,
             "active_subscriptions": active_subs,

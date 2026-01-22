@@ -243,6 +243,8 @@ export default function HomePage() {
   }
 
   // Show chat interface for text chat mode
+  const shouldShowAgenticPanel = verificationRequired || Boolean(token);
+
   return (
     <div className="flex-1 min-h-0 flex">
       {/* Floating Sidebar */}
@@ -269,21 +271,23 @@ export default function HomePage() {
           isLoading={chatLoading || isSending}
           showWorking={showWorking}
           agenticPanel={
-            <AgenticPanel
-              needsVerification={verificationRequired}
-              isVerified={Boolean(token)}
-              otpStep={otpStep}
-              phone={phone}
-              code={otpCode}
-              status={otpStatus}
-              onPhoneChange={setPhone}
-              onCodeChange={setOtpCode}
-              onStartOtp={startOtp}
-              onConfirmOtp={confirmOtp}
-              quickActions={agenticActions}
-              isLoadingActions={loadingAgenticActions}
-              onQuickAction={handleQuickAction}
-            />
+            shouldShowAgenticPanel ? (
+              <AgenticPanel
+                needsVerification={verificationRequired}
+                isVerified={Boolean(token)}
+                otpStep={otpStep}
+                phone={phone}
+                code={otpCode}
+                status={otpStatus}
+                onPhoneChange={setPhone}
+                onCodeChange={setOtpCode}
+                onStartOtp={startOtp}
+                onConfirmOtp={confirmOtp}
+                quickActions={agenticActions}
+                isLoadingActions={loadingAgenticActions}
+                onQuickAction={handleQuickAction}
+              />
+            ) : null
           }
           onSend={handleSendMessage}
           onRegenerate={regenerateMessage}

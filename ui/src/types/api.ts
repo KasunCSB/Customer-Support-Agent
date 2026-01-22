@@ -115,7 +115,7 @@ export const AgenticContextSchema = z.object({
     id: z.string().optional(),
     display_name: z.string().optional(),
     email: z.string().optional(),
-    phone_e164: z.string().optional(),
+    phone_local: z.string().optional(),
   }).optional(),
   quick_actions: z.array(QuickActionSchema).default([]),
   active_subscriptions: z.array(

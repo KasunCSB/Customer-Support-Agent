@@ -26,10 +26,12 @@ export async function POST(request: Request) {
     // Forward to backend
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:8000';
 
+    const authHeader = request.headers.get('authorization');
     const response = await fetch(`${backendUrl}/api/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(authHeader ? { Authorization: authHeader } : {}),
       },
       body: JSON.stringify({
         message,
@@ -94,6 +96,11 @@ export async function POST(request: Request) {
         answer: data.answer,
         sources: data.sources || [],
         sessionId: data.session_id || sessionId,
+        needs_verification: data.needs_verification,
+        session_valid: data.session_valid,
+        agentic: data.agentic,
+        action: data.action,
+        action_result: data.action_result,
       });
     }
   } catch (error) {

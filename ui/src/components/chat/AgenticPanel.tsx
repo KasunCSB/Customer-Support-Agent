@@ -6,6 +6,8 @@
 
 'use client';
 
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -44,10 +46,41 @@ const AgenticPanel = ({
   onQuickAction,
 }: AgenticPanelProps) => {
   const shouldShowPanel = needsVerification || isVerified;
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollState = useCallback(() => {
+    const el = actionsRef.current;
+    if (!el) return;
+    const maxScrollLeft = el.scrollWidth - el.clientWidth;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(el.scrollLeft < maxScrollLeft - 4);
+  }, []);
+
+  useEffect(() => {
+    if (!shouldShowPanel) return;
+    updateScrollState();
+  }, [quickActions.length, isLoadingActions, shouldShowPanel, updateScrollState]);
+
+  useEffect(() => {
+    if (!shouldShowPanel) return;
+    const handleResize = () => updateScrollState();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [shouldShowPanel, updateScrollState]);
+
+  const scrollByAmount = (amount: number) => {
+    actionsRef.current?.scrollBy({ left: amount, behavior: 'smooth' });
+  };
+
   if (!shouldShowPanel) return null;
 
   return (
-    <Card variant="outlined" className="border-primary-200/60 dark:border-primary-500/20 bg-primary-50/40 dark:bg-neutral-900/60">
+    <Card
+      variant="flat"
+      className="w-full max-w-[640px] bg-transparent border border-transparent shadow-none p-0"
+    >
       <div className="flex items-center justify-between mb-3">
         <div className="font-semibold text-neutral-900 dark:text-neutral-100">
           Account Actions
@@ -106,18 +139,44 @@ const AgenticPanel = ({
               Loading actions...
             </div>
           ) : quickActions.length > 0 ? (
-            <div className="flex gap-2 overflow-x-auto pb-1 flex-nowrap">
-              {quickActions.map((action) => (
-                <Button
-                  key={action.id}
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 whitespace-nowrap"
-                  onClick={() => onQuickAction(action)}
+            <div className="relative">
+              <div
+                ref={actionsRef}
+                onScroll={updateScrollState}
+                className="flex gap-2 overflow-x-auto pb-1 flex-nowrap scrollbar-hide scroll-smooth"
+              >
+                {quickActions.map((action) => (
+                  <Button
+                    key={action.id}
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 whitespace-nowrap"
+                    onClick={() => onQuickAction(action)}
+                  >
+                    {action.label}
+                  </Button>
+                ))}
+              </div>
+              {canScrollLeft && (
+                <button
+                  type="button"
+                  onClick={() => scrollByAmount(-240)}
+                  className="absolute -left-3 top-1/2 -translate-y-1/2 rounded-full border border-white/40 dark:border-white/10 bg-white/90 dark:bg-neutral-900/90 text-neutral-700 dark:text-neutral-200 shadow-md backdrop-blur p-1.5"
+                  aria-label="Scroll left"
                 >
-                  {action.label}
-                </Button>
-              ))}
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+              )}
+              {canScrollRight && (
+                <button
+                  type="button"
+                  onClick={() => scrollByAmount(240)}
+                  className="absolute -right-3 top-1/2 -translate-y-1/2 rounded-full border border-white/40 dark:border-white/10 bg-white/90 dark:bg-neutral-900/90 text-neutral-700 dark:text-neutral-200 shadow-md backdrop-blur p-1.5"
+                  aria-label="Scroll right"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              )}
             </div>
           ) : (
             <div className="text-xs text-neutral-500 dark:text-neutral-400">

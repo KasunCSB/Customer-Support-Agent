@@ -14,10 +14,19 @@ from src.logger import get_logger
 logger = get_logger(__name__)
 
 
-def _write_audit(actor_id: str, actor_role: str, action: str, target_type: Optional[str], target_id: Optional[str], request_payload: dict, response_payload: dict, severity: str = "info") -> None:
+def _write_audit(
+    actor_id: str,
+    actor_role: str,
+    action: str,
+    target_type: Optional[str],
+    target_id: Optional[str],
+    request_payload: dict,
+    response_payload: dict,
+    severity: str = "info",
+) -> None:
     """Record an audit log entry."""
-    request_payload = _to_json(request_payload)
-    response_payload = _to_json(response_payload)
+    request_json = _to_json(request_payload)
+    response_json = _to_json(response_payload)
     db.execute(
         """
         INSERT INTO audit_logs (id, actor_id, actor_role, action, target_type, target_id, request, response, severity, created_at)
@@ -30,8 +39,8 @@ def _write_audit(actor_id: str, actor_role: str, action: str, target_type: Optio
             "action": action,
             "target_type": target_type,
             "target_id": target_id,
-            "request": request_payload,
-            "response": response_payload,
+            "request": request_json,
+            "response": response_json,
             "severity": severity,
         },
     )
@@ -73,7 +82,7 @@ class ActionService:
                 return user
         if phone:
             user = db.fetch_one(
-                "SELECT * FROM users WHERE phone_e164 = :phone AND status = 'active' LIMIT 1",
+                "SELECT * FROM users WHERE phone_local = :phone AND status = 'active' LIMIT 1",
                 {"phone": phone},
             )
             if user:
@@ -87,8 +96,8 @@ class ActionService:
         )
 
     def _record_action(self, *, user_id: str, action_name: str, params: dict, result: dict) -> None:
-        params = _to_json(params)
-        result = _to_json(result)
+        params_json = _to_json(params)
+        result_json = _to_json(result)
         action_id = secrets.token_hex(16)
         db.execute(
             """
@@ -100,8 +109,8 @@ class ActionService:
                 "idem": f"auto-{action_id}",
                 "user_id": user_id,
                 "action_name": action_name,
-                "params": params,
-                "result": result,
+                "params": params_json,
+                "result": result_json,
             },
         )
 
@@ -137,7 +146,7 @@ class ActionService:
             "user_id": user.get("id"),
             "display_name": user.get("display_name"),
             "email": user.get("email"),
-            "phone_e164": user.get("phone_e164"),
+            "phone_local": user.get("phone_local"),
             "status": user.get("status"),
             "connection_valid_until": user.get("connection_valid_until"),
         }

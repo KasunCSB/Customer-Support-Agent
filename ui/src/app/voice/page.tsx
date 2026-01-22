@@ -991,8 +991,8 @@ function VoicePageContent() {
 
   // Determine orb state
   const getOrbState = (): VoiceOrbState => {
-    if (isProcessing) return 'working';
     if (isSpeakingRef.current) return 'speaking';
+    if (isProcessing) return 'thinking';
     return state;
   };
 

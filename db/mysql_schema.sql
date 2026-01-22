@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
   id CHAR(36) PRIMARY KEY,
   external_id VARCHAR(64) UNIQUE,
   email VARCHAR(255) NOT NULL UNIQUE,
-  phone_e164 VARCHAR(32) UNIQUE,
+  phone_local VARCHAR(32) UNIQUE,
   display_name VARCHAR(255) NOT NULL,
   role ENUM('customer','agent','admin') NOT NULL DEFAULT 'customer',
   status ENUM('active','suspended') NOT NULL DEFAULT 'active',
@@ -184,12 +184,12 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- =============================================================================
 
 -- Users
-INSERT INTO users (id, external_id, email, phone_e164, display_name, role, status, preferred_channel, balance_lkr, connection_valid_until, metadata)
+INSERT INTO users (id, external_id, email, phone_local, display_name, role, status, preferred_channel, balance_lkr, connection_valid_until, metadata)
 VALUES
-  ('11111111-aaaa-4bbb-8888-000000000001', 'ACC1001', 'kasuncsb@gmail.com', '+94770011111', 'Anushka Perera', 'customer', 'active', 'email', 1250.75, DATE_ADD(NOW(), INTERVAL 365 DAY), JSON_OBJECT('city','Colombo')),
-  ('11111111-aaaa-4bbb-8888-000000000002', 'ACC1002', 'maya@kasunc.uk', '+94770022222', 'Maya Fernando', 'customer', 'active', 'email', 420.00, DATE_ADD(NOW(), INTERVAL 180 DAY), JSON_OBJECT('city','Kandy')),
-  ('11111111-aaaa-4bbb-8888-0000000000a1', 'AGENT001', 'agent.ramesh@kasunc.uk', '+94770033333', 'Agent Ramesh', 'agent', 'active', 'email', NULL, NULL, JSON_OBJECT('team','support')),
-  ('11111111-aaaa-4bbb-8888-0000000000b1', 'OPSADMIN', 'ops.admin@kasunc.uk', '+94770044444', 'Ops Admin', 'admin', 'active', 'email', NULL, NULL, JSON_OBJECT('department','operations'))
+  ('11111111-aaaa-4bbb-8888-000000000001', 'ACC1001', 'kasuncsb@gmail.com', '0770011111', 'Anushka Perera', 'customer', 'active', 'email', 1250.75, DATE_ADD(NOW(), INTERVAL 365 DAY), JSON_OBJECT('city','Colombo')),
+  ('11111111-aaaa-4bbb-8888-000000000002', 'ACC1002', 'maya@kasunc.uk', '0770022222', 'Maya Fernando', 'customer', 'active', 'email', 420.00, DATE_ADD(NOW(), INTERVAL 180 DAY), JSON_OBJECT('city','Kandy')),
+  ('11111111-aaaa-4bbb-8888-0000000000a1', 'AGENT001', 'agent.ramesh@kasunc.uk', '0770033333', 'Agent Ramesh', 'agent', 'active', 'email', NULL, NULL, JSON_OBJECT('team','support')),
+  ('11111111-aaaa-4bbb-8888-0000000000b1', 'OPSADMIN', 'ops.admin@kasunc.uk', '0770044444', 'Ops Admin', 'admin', 'active', 'email', NULL, NULL, JSON_OBJECT('department','operations'))
 ON DUPLICATE KEY UPDATE updated_at = CURRENT_TIMESTAMP;
 
 -- Email verifications (sample: Anushka verified)
@@ -245,7 +245,7 @@ ON DUPLICATE KEY UPDATE created_at = VALUES(created_at);
 INSERT INTO actions (id, idempotency_key, session_id, user_id, action_name, status, requires_confirmation, params, result, error, created_at, completed_at)
 VALUES
   ('88888888-aaaa-4bbb-8888-000000000001', 'idem-create-ticket-1001', '33333333-aaaa-4bbb-8888-000000000001', '11111111-aaaa-4bbb-8888-000000000001', 'create_ticket', 'completed', 1, JSON_OBJECT('subject','Billing dispute for DATA_5GB','description','Charged twice','priority','high'), JSON_OBJECT('ticket_id','TICK-1001','status','open'), NULL, NOW(), NOW()),
-  ('88888888-aaaa-4bbb-8888-000000000002', 'idem-activate-bundle-family', '33333333-aaaa-4bbb-8888-000000000001', '11111111-aaaa-4bbb-8888-000000000001', 'activate_service', 'pending', 1, JSON_OBJECT('service_code','BUNDLE_FAMILY','user_phone','+94770011111'), NULL, NULL, NOW(), NULL)
+  ('88888888-aaaa-4bbb-8888-000000000002', 'idem-activate-bundle-family', '33333333-aaaa-4bbb-8888-000000000001', '11111111-aaaa-4bbb-8888-000000000001', 'activate_service', 'pending', 1, JSON_OBJECT('service_code','BUNDLE_FAMILY','user_phone','0770011111'), NULL, NULL, NOW(), NULL)
 ON DUPLICATE KEY UPDATE status = VALUES(status), updated_at = CURRENT_TIMESTAMP;
 
 -- Action events

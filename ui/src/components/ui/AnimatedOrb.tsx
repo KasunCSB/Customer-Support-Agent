@@ -13,7 +13,7 @@
 import { memo, useMemo, useId, type CSSProperties } from 'react';
 import { cn } from '@/lib/utils';
 
-export type OrbState = 'idle' | 'listening' | 'thinking' | 'speaking' | 'working';
+export type OrbState = 'idle' | 'listening' | 'thinking' | 'speaking';
 export type OrbEmotion = 'neutral' | 'happy' | 'curious' | 'focused';
 
 interface AnimatedOrbProps {
@@ -56,16 +56,9 @@ const STATE_PALETTES = {
     accent2: ['#FB7185', '#F472B6', '#E879F9'],
     glow: 'from-orange-500/60 via-amber-500/50 to-rose-400/50',
   },
-  working: {
-    // Purposeful teal/amber mix for "doing work"
-    base: ['#0EA5E9', '#06B6D4', '#0D9488', '#0EA5E9', '#F59E0B'],
-    accent1: ['#67E8F9', '#22D3EE', '#FCD34D'],
-    accent2: ['#A7F3D0', '#34D399', '#FBBF24'],
-    glow: 'from-cyan-400/60 via-emerald-400/45 to-amber-400/45',
-  },
 };
 
-const STATES: OrbState[] = ['idle', 'listening', 'thinking', 'speaking', 'working'];
+const STATES: OrbState[] = ['idle', 'listening', 'thinking', 'speaking'];
 
 // Single state layer component for clean rendering
 const StateLayer = memo(function StateLayer({
